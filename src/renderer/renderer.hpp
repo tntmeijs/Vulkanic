@@ -13,8 +13,19 @@
 
 //////////////////////////////////////////////////////////////////////////
 
+// C++ standard
+#include <string>
+#include <vector>
+
+//////////////////////////////////////////////////////////////////////////
+
 namespace vkc
 {
+	struct QueueFamilyIndices
+	{
+		uint32_t graphics;
+	};
+
 	class Renderer
 	{
 	public:
@@ -23,12 +34,15 @@ namespace vkc
 
 		void InitializeVulkan();
 		void SetupWindow(uint32_t width, uint32_t height, const char* title);
-		void Prepare();
-		void Run();
 
 		GLFWwindow* const GetHandle() const;
 
 	private:
+		void CreateInstance();
+
+	private:
 		GLFWwindow* m_window;
+
+		VkInstance m_instance;
 	};
 }

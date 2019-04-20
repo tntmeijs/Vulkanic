@@ -5,6 +5,11 @@ set(RENDERER_FILES
 # Find Vulkan on the system
 find_package(Vulkan REQUIRED)
 
+# Use the Vulkan Windows extension
+if(MSVC)
+	add_compile_definitions(VK_USE_PLATFORM_WIN32_KHR)
+endif(MSVC)
+
 add_executable(${PROJECT_NAME} main.cpp ${RENDERER_FILES})
 target_link_libraries(${PROJECT_NAME} Vulkan::Vulkan)
 
