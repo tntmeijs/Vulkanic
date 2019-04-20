@@ -1,9 +1,13 @@
 cmake_minimum_required(VERSION 3.14)
 set(PROJECT_NAME Vulkanic)
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 project(${PROJECT_NAME})
 
+# Vulkanic
 add_subdirectory(src)
+
+# All third-party dependencies
 add_subdirectory(third_party)
 
 # Use C++17
