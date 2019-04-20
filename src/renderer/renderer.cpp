@@ -67,10 +67,39 @@ void Renderer::CreateInstance()
 	app_info.engineVersion = VK_MAKE_VERSION(1, 0, 0);
 	app_info.apiVersion = VK_VERSION_1_0;
 
-	// Rely on GLFW to tell the application which extensions are needed
+	// All Vulkan extensions required by GLFW
 	uint32_t glfw_extension_count = 0;
 	const char** glfw_extensions;
 	glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
+
+	// Retrieve a list of all supported extensions
+	uint32_t extension_count = 0;
+	std::vector<VkExtensionProperties> extensions;
+	vkEnumerateInstanceExtensionProperties(nullptr, &extension_count, nullptr);
+	extensions.resize(extension_count);
+	vkEnumerateInstanceExtensionProperties(nullptr, &extension_count, extensions.data());
+
+	// Log all available extensions
+	spdlog::info("Available Vulkan extensions:");
+	for (const auto& extension : extensions)
+	{
+		spdlog::info("  > {}", extension.extensionName);
+	}
+
+	// Check whether all GLFW required extensions are supported on this system
+	for (uint32_t i = 0; i < glfw_extension_count; ++i)
+	{
+		bool found_extension = false;
+
+		for (const auto& extension : extensions)
+		{
+			if (strcmp(extension.extensionName, glfw_extensions[i]) == 0)
+				found_extension = true;
+		}
+
+		if (!found_extension)
+			spdlog::error("\t\tGLFW requires the extension \"{}\" to be present, but it could not be found.\n", glfw_extensions[i]);
+	}
 
 	VkInstanceCreateInfo instance_info = {};
 	instance_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
