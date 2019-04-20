@@ -1,36 +1,22 @@
-#include <spdlog/spdlog.h>
-#include <vulkan/vulkan.hpp>
-#include <glfw/glfw3.h>
+//////////////////////////////////////////////////////////////////////////
+
+// Renderer
+#include "renderer/renderer.hpp"
+
+//////////////////////////////////////////////////////////////////////////
 
 int main(int argc, char* argv[])
 {
 	// Prevent "unreferenced formal parameter" warning from triggering
 	argc, argv;
 
-	if (!glfwInit())
-	{
-		spdlog::error("Could not initialize GLFW.");
-		return -1;
-	}
+	vkc::Renderer renderer;
+	renderer.InitializeVulkan();
+	renderer.SetupWindow(1280, 720, "Vulkanic");
 
-	spdlog::info("GLFW has been initialized.");
-
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
-
-	auto* const window = glfwCreateWindow(1280, 720, "Vulkanic", nullptr, nullptr);
-
-	if (!window)
-	{
-		glfwDestroyWindow(window);
-		glfwTerminate();
-		spdlog::error("Could not create a window.");
-		return -1;
-	}
-
-	glfwMakeContextCurrent(window);
-
-	glfwSetKeyCallback(window, [](GLFWwindow* const window, int key, int action, int scancode, int mods)
+	auto* const window_handle = renderer.GetHandle();
+	
+	glfwSetKeyCallback(window_handle, [](GLFWwindow* const window, int key, int action, int scancode, int mods)
 	{
 		// Prevent "unreferenced formal parameter" warning from triggering
 		scancode, mods;
@@ -39,15 +25,10 @@ int main(int argc, char* argv[])
 			glfwSetWindowShouldClose(window, GLFW_TRUE);
 	});
 
-	spdlog::info("A window has been created.");
-
-	while (!glfwWindowShouldClose(window))
+	while (!glfwWindowShouldClose(window_handle))
 	{
 		glfwPollEvents();
 	}
-
-	glfwDestroyWindow(window);
-	glfwTerminate();
 
     return 0;
 }
