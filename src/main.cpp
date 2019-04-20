@@ -4,6 +4,9 @@
 
 int main(int argc, char* argv[])
 {
+	// Prevent "unreferenced formal parameter" warning from triggering
+	argc, argv;
+
 	if (!glfwInit())
 	{
 		spdlog::error("Could not initialize GLFW.");
@@ -27,7 +30,11 @@ int main(int argc, char* argv[])
 
 	glfwMakeContextCurrent(window);
 
-	glfwSetKeyCallback(window, [](GLFWwindow* const window, int key, int action, int scancode, int mods) {
+	glfwSetKeyCallback(window, [](GLFWwindow* const window, int key, int action, int scancode, int mods)
+	{
+		// Prevent "unreferenced formal parameter" warning from triggering
+		scancode, mods;
+
 		if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
 			glfwSetWindowShouldClose(window, GLFW_TRUE);
 	});
