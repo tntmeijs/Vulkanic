@@ -1,3 +1,6 @@
+set(MISCELLANEOUS_FILES
+    miscellaneous/global_settings.hpp)
+
 set(RENDERER_FILES
     renderer/renderer.cpp
     renderer/renderer.hpp)
@@ -10,9 +13,10 @@ if(MSVC)
 	add_compile_definitions(VK_USE_PLATFORM_WIN32_KHR)
 endif(MSVC)
 
-add_executable(${PROJECT_NAME} main.cpp ${RENDERER_FILES})
+add_executable(${PROJECT_NAME} main.cpp ${MISCELLANEOUS_FILES} ${RENDERER_FILES})
 target_link_libraries(${PROJECT_NAME} Vulkan::Vulkan)
 
 # Group the source files to keep the project nicely structured
 source_group("main" FILES main.cpp)
+source_group("miscellaneous" FILES ${MISCELLANEOUS_FILES})
 source_group("renderer" FILES ${RENDERER_FILES})

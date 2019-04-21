@@ -6,6 +6,7 @@ project(${PROJECT_NAME})
 
 # Vulkanic
 add_subdirectory(src)
+target_include_directories(${PROJECT_NAME} PRIVATE src)
 
 # All third-party dependencies
 add_subdirectory(third_party)

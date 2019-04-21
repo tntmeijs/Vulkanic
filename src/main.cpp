@@ -11,7 +11,7 @@ int main(int argc, char* argv[])
 	argc, argv;
 
 	vkc::Renderer renderer;
-	renderer.SetupWindow(1280, 720, "Vulkanic");
+	renderer.SetupWindow();
 	renderer.InitializeVulkan();
 
 	auto* const window_handle = renderer.GetHandle();

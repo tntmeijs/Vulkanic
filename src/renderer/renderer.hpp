@@ -13,12 +13,6 @@
 
 //////////////////////////////////////////////////////////////////////////
 
-// C++ standard
-#include <string>
-#include <vector>
-
-//////////////////////////////////////////////////////////////////////////
-
 namespace vkc
 {
 	struct QueueFamilyIndices
@@ -33,12 +27,13 @@ namespace vkc
 		~Renderer();
 
 		void InitializeVulkan();
-		void SetupWindow(uint32_t width, uint32_t height, const char* title);
+		void SetupWindow();
 
 		GLFWwindow* const GetHandle() const;
 
 	private:
 		void CreateInstance();
+		bool CheckValidationLayerSupport();
 
 	private:
 		GLFWwindow* m_window;
