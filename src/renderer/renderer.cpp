@@ -5,9 +5,33 @@
 #include "renderer.hpp"
 
 //////////////////////////////////////////////////////////////////////////
+// Vulkan extension functions
+//////////////////////////////////////////////////////////////////////////
 
-// C++ standard
-#include <vector>
+VkResult CreateDebugUtilsMessengerEXT(
+	VkInstance instance,
+	const VkDebugUtilsMessengerCreateInfoEXT* create_info,
+	const VkAllocationCallbacks* allocator,
+	VkDebugUtilsMessengerEXT* debug_messenger)
+{
+	auto function = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
+
+	if (function)
+		return function(instance, create_info, allocator, debug_messenger);
+	else
+		return VK_ERROR_EXTENSION_NOT_PRESENT;
+}
+
+void DestroyDebugUtilsMessengerEXT(
+	VkInstance instance,
+	VkDebugUtilsMessengerEXT debug_messenger,
+	const VkAllocationCallbacks* allocator)
+{
+	auto function = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT"));
+
+	if (function)
+		function(instance, debug_messenger, allocator);
+}
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -19,6 +43,10 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
+#ifdef _DEBUG
+	DestroyDebugUtilsMessengerEXT(m_instance, m_debug_messenger, nullptr);
+#endif
+
 	vkDestroyInstance(m_instance, nullptr);
 
 	glfwDestroyWindow(m_window);
@@ -28,6 +56,7 @@ Renderer::~Renderer()
 void Renderer::InitializeVulkan()
 {
 	CreateInstance();
+	SetUpDebugMessenger();
 }
 
 void Renderer::SetupWindow()
@@ -83,10 +112,8 @@ void Renderer::CreateInstance()
 		global_settings::engine_version[2]);
 	app_info.apiVersion = VK_API_VERSION_1_0;
 
-	// All Vulkan extensions required by GLFW
-	uint32_t glfw_extension_count = 0;
-	const char** glfw_extensions;
-	glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
+	// All Vulkan extensions required by the application
+	auto required_extensions = GetRequiredExtensions();
 
 	// Retrieve a list of all supported extensions
 	uint32_t extension_count = 0;
@@ -102,19 +129,19 @@ void Renderer::CreateInstance()
 		spdlog::info("  > {}", extension.extensionName);
 	}
 
-	// Check whether all GLFW required extensions are supported on this system
-	for (uint32_t i = 0; i < glfw_extension_count; ++i)
+	// Check whether all required extensions are supported on this system
+	for (auto & required_extension : required_extensions)
 	{
 		bool found_extension = false;
 
 		for (const auto& extension : extensions)
 		{
-			if (strcmp(extension.extensionName, glfw_extensions[i]) == 0)
+			if (strcmp(extension.extensionName, required_extension) == 0)
 				found_extension = true;
 		}
 
 		if (!found_extension)
-			spdlog::error("\t\tGLFW requires the extension \"{}\" to be present, but it could not be found.\n", glfw_extensions[i]);
+			spdlog::error("\t\tGLFW requires the extension \"{}\" to be present, but it could not be found.\n", required_extension);
 	}
 
 	// Use validation layers in debug mode
@@ -126,8 +153,8 @@ void Renderer::CreateInstance()
 	VkInstanceCreateInfo instance_info = {};
 	instance_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	instance_info.pApplicationInfo = &app_info;
-	instance_info.enabledExtensionCount = glfw_extension_count;
-	instance_info.ppEnabledExtensionNames = glfw_extensions;
+	instance_info.enabledExtensionCount = static_cast<uint32_t>(required_extensions.size());
+	instance_info.ppEnabledExtensionNames = required_extensions.data();
 
 	if (!CheckValidationLayerSupport() || !use_validation_layers)
 	{
@@ -141,8 +168,8 @@ void Renderer::CreateInstance()
 	}
 	else
 	{
-		instance_info.enabledLayerCount = static_cast<uint32_t>(global_settings::validation_layers.size());
-		instance_info.ppEnabledLayerNames = global_settings::validation_layers.data();
+		instance_info.enabledLayerCount = static_cast<uint32_t>(global_settings::validation_layer_names.size());
+		instance_info.ppEnabledLayerNames = global_settings::validation_layer_names.data();
 	}
 
 	auto result = vkCreateInstance(&instance_info, nullptr, &m_instance);
@@ -167,7 +194,7 @@ bool vkc::Renderer::CheckValidationLayerSupport()
 	}
 
 	// Check if the requested validation layers are supported
-	for (const char* name : global_settings::validation_layers)
+	for (const char* name : global_settings::validation_layer_names)
 	{
 		bool layer_found = false;
 
@@ -188,4 +215,65 @@ bool vkc::Renderer::CheckValidationLayerSupport()
 
 	// Requested layers are all supported
 	return true;
+}
+
+std::vector<const char*> Renderer::GetRequiredExtensions()
+{
+	uint32_t glfw_required_extension_count = 0;
+	const char** glfw_extensions;
+
+	glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_required_extension_count);
+
+	std::vector<const char*> required_extensions(glfw_extensions, glfw_extensions + glfw_required_extension_count);
+
+#ifdef _DEBUG
+	// When running in debug mode, add the message callback extension to the list
+	required_extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+#endif
+
+	// Add any additional extension names to the list specified in the global settings file
+	required_extensions.insert(required_extensions.end(), global_settings::extension_names.begin(), global_settings::extension_names.end());
+
+	// Return the complete list of extensions
+	return required_extensions;
+}
+
+void Renderer::SetUpDebugMessenger()
+{
+	// Only set-up the debug messenger in debug builds
+#ifdef _DEBUG
+	VkDebugUtilsMessengerCreateInfoEXT create_info = {};
+	create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+	create_info.messageSeverity =
+		VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
+		VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
+		VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+	create_info.messageType =
+		VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT		|
+		VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT	|
+		VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+	create_info.pfnUserCallback = DebugMessageCallback;
+#endif
+
+	if (CreateDebugUtilsMessengerEXT(m_instance, &create_info, nullptr, &m_debug_messenger) != VK_SUCCESS)
+	{
+		spdlog::error("Could not set-up the debug messenger.");
+	}
+}
+
+VKAPI_ATTR VkBool32 VKAPI_CALL Renderer::DebugMessageCallback(
+	VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+	VkDebugUtilsMessageTypeFlagsEXT type,
+	const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
+	void* user_data)
+{
+	// Suppress "unreferences formal parameter" warning when using warning level 4
+	type;
+	user_data;
+
+	// Only log warnings to the console
+	if (severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
+		spdlog::warn("Validation layer: {}", callback_data->pMessage);
+
+	return VK_FALSE;
 }

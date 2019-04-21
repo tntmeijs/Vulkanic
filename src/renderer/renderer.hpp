@@ -13,6 +13,11 @@
 
 //////////////////////////////////////////////////////////////////////////
 
+// C++ standard
+#include <vector>
+
+//////////////////////////////////////////////////////////////////////////
+
 namespace vkc
 {
 	struct QueueFamilyIndices
@@ -34,10 +39,19 @@ namespace vkc
 	private:
 		void CreateInstance();
 		bool CheckValidationLayerSupport();
+		std::vector<const char*> GetRequiredExtensions();
+		void SetUpDebugMessenger();
+
+		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
+			VkDebugUtilsMessageSeverityFlagBitsEXT severity,
+			VkDebugUtilsMessageTypeFlagsEXT type,
+			const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
+			void* user_data);
 
 	private:
 		GLFWwindow* m_window;
 
 		VkInstance m_instance;
+		VkDebugUtilsMessengerEXT m_debug_messenger;
 	};
 }
