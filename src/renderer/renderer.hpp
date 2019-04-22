@@ -5,11 +5,11 @@
 // Spdlog (including it here to avoid the "APIENTRY": macro redefinition warning)
 #include <spdlog/spdlog.h>
 
-// GLFW
-#include <glfw/glfw3.h>
-
 // Vulkan
 #include <vulkan/vulkan.h>
+
+// GLFW
+#include <glfw/glfw3.h>
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -51,6 +51,7 @@ namespace vkc
 		uint32_t RatePhysicalDeviceSuitability(const VkPhysicalDevice& physical_device);
 		QueueFamilyIndices FindQueueFamiliesOfSelectedPhysicalDevice();
 		void CreateLogicalDevice();
+		void CreateSurface();
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -67,5 +68,6 @@ namespace vkc
 		VkPhysicalDevice m_physical_device;
 		VkDevice m_device;
 		VkQueue m_graphics_queue;
+		VkSurfaceKHR m_surface;
 	};
 }

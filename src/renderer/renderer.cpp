@@ -54,6 +54,7 @@ Renderer::~Renderer()
 	DestroyDebugUtilsMessengerEXT(m_instance, m_debug_messenger, nullptr);
 #endif
 
+	vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
 	vkDestroyInstance(m_instance, nullptr);
 
 	glfwDestroyWindow(m_window);
@@ -66,6 +67,7 @@ void Renderer::InitializeVulkan()
 	SetUpDebugMessenger();
 	SelectPhysicalDevice();
 	CreateLogicalDevice();
+	CreateSurface();
 }
 
 void Renderer::SetupWindow()
@@ -433,6 +435,14 @@ void Renderer::CreateLogicalDevice()
 
 	// Queues are created as soon as the logical device is created, which means handles to the queues can be retrieved
 	vkGetDeviceQueue(m_device, m_queue_family_indices.graphics_family_index.value(), 0, &m_graphics_queue);
+}
+
+void Renderer::CreateSurface()
+{
+	if (glfwCreateWindowSurface(m_instance, m_window, nullptr, &m_surface) != VK_SUCCESS)
+	{
+		spdlog::error("Could not create a window surface.");
+	}
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL Renderer::DebugMessageCallback(
