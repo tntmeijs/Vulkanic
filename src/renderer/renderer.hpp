@@ -14,6 +14,7 @@
 //////////////////////////////////////////////////////////////////////////
 
 // C++ standard
+#include <optional>
 #include <vector>
 
 //////////////////////////////////////////////////////////////////////////
@@ -22,7 +23,12 @@ namespace vkc
 {
 	struct QueueFamilyIndices
 	{
-		uint32_t graphics;
+		std::optional<uint32_t> graphics_family_index;
+
+		bool AllIndicesFound()
+		{
+			return graphics_family_index.has_value();
+		}
 	};
 
 	class Renderer
@@ -43,6 +49,7 @@ namespace vkc
 		void SetUpDebugMessenger();
 		void SelectPhysicalDevice();
 		uint32_t RatePhysicalDeviceSuitability(const VkPhysicalDevice& physical_device);
+		QueueFamilyIndices FindQueueFamilies();
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -52,6 +59,7 @@ namespace vkc
 
 	private:
 		GLFWwindow* m_window;
+		QueueFamilyIndices m_queue_family_indices;
 
 		VkInstance m_instance;
 		VkDebugUtilsMessengerEXT m_debug_messenger;

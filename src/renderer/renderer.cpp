@@ -300,34 +300,108 @@ void Renderer::SelectPhysicalDevice()
 
 	// Now that the GPUs have been sorted, it is safe to assume that the first element is the best GPU available
 	// However, if the score is zero, it means the GPU lacks certain required features
-	if (physical_device_scores[0].first == 0)
+	bool found_gpu_with_valid_score = false;
+	for (const auto& pair : physical_device_scores)
 	{
-		spdlog::error("Could not find a suitable GPU.");
+		// Grab the first GPU with a valid score (scores are sorted already, so this should be the best possible GPU)
+		if (pair.first != 0)
+		{
+			found_gpu_with_valid_score = true;
+			m_physical_device = pair.second;
+		}
+	}
+
+	if (!found_gpu_with_valid_score)
+	{
+		spdlog::error("Could not find a suitable GPU on this system.");
 		return;
 	}
 
-	m_physical_device = physical_device_scores[0].second;
+	// Try to find all required queue family indices
+	auto indices = FindQueueFamilies();
+
+	// If the device does not support all required queue families, it is not usable at all for this application
+	if (!indices.AllIndicesFound())
+		return;
+
+	VkPhysicalDeviceProperties gpu_properties;
+	VkPhysicalDeviceMemoryProperties gpu_memory_properties;
+	vkGetPhysicalDeviceProperties(m_physical_device, &gpu_properties);
+	vkGetPhysicalDeviceMemoryProperties(m_physical_device, &gpu_memory_properties);
+
+	// List the GPU information
+	spdlog::info("Selected GPU: \"{}\".", gpu_properties.deviceName);
+	for (uint32_t i = 0; i < gpu_memory_properties.memoryHeapCount; ++i)
+	{
+		// Find the heap that represents the VRAM
+		if (gpu_memory_properties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
+			spdlog::info("  > VRAM:\t{}MB", (gpu_memory_properties.memoryHeaps[i].size / 1024 / 1024));
+		else
+			spdlog::info("  > Shared:\t{}MB", (gpu_memory_properties.memoryHeaps[i].size / 1024 / 1024));
+	}
 }
 
 uint32_t Renderer::RatePhysicalDeviceSuitability(const VkPhysicalDevice& physical_device)
 {
 	uint32_t score = 0;
 
-	VkPhysicalDeviceProperties properties	= {};
-	VkPhysicalDeviceFeatures features		= {};
+	VkPhysicalDeviceProperties properties			= {};
+	VkPhysicalDeviceFeatures features				= {};
+	VkPhysicalDeviceMemoryProperties mem_properties	= {};
 
 	vkGetPhysicalDeviceProperties(physical_device, &properties);
 	vkGetPhysicalDeviceFeatures(physical_device, &features);
+	vkGetPhysicalDeviceMemoryProperties(physical_device, &mem_properties);
 
 	// A discrete GPU is always preferred, hence the big increase in score
 	if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
 		score += 1000;
+
+	// More VRAM is better
+	for (uint32_t i = 0; i < mem_properties.memoryHeapCount; ++i)
+	{
+		// Find the heap that represents the VRAM
+		if (mem_properties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
+			score += static_cast<uint32_t>(mem_properties.memoryHeaps[i].size / 1024 / 1024);
+	}
 
 	// #TODO: Add any additional checks (e.g. VK_NV_ray_tracing support, maximum texture size, etc.)
 	
 	// #TODO: If a REQUIRED feature is not present, return 0 (a score of 0 will not be accepted by the application)
 
 	return score;
+}
+
+QueueFamilyIndices Renderer::FindQueueFamilies()
+{
+	QueueFamilyIndices indices;
+
+	uint32_t queue_family_count = 0;
+	vkGetPhysicalDeviceQueueFamilyProperties(m_physical_device, &queue_family_count, nullptr);
+
+	std::vector<VkQueueFamilyProperties> queue_families(queue_family_count);
+	vkGetPhysicalDeviceQueueFamilyProperties(m_physical_device, &queue_family_count, queue_families.data());
+
+	if (queue_family_count == 0)
+		spdlog::error("Could not find any queue families using this physical device.");
+
+	uint32_t index = 0;
+	for (const auto& queue_family : queue_families)
+	{
+		// Look for a queue family that supports graphics operations
+		if (queue_family.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+			indices.graphics_family_index = index;
+
+		// #TODO: Add more queue family type checks here
+
+		// Stop searching once all queue family indices have been found
+		if (indices.AllIndicesFound())
+			break;
+
+		++index;
+	}
+
+	return indices;
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL Renderer::DebugMessageCallback(
