@@ -9,6 +9,7 @@
 // C++ standard
 #include <algorithm>
 #include <set>
+#include <string>
 
 //////////////////////////////////////////////////////////////////////////
 // Vulkan extension functions
@@ -49,6 +50,7 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
+	vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
 	vkDestroyDevice(m_device, nullptr);
 
 #ifdef _DEBUG
@@ -69,6 +71,7 @@ void Renderer::InitializeVulkan()
 	CreateSurface();
 	SelectPhysicalDevice();
 	CreateLogicalDevice();
+	CreateSwapchain();
 }
 
 void Renderer::SetupWindow()
@@ -76,7 +79,7 @@ void Renderer::SetupWindow()
 	if (!glfwInit())
 	{
 		spdlog::error("Could not initialize GLFW.");
-		return;
+		assert(false);
 	}
 
 	spdlog::info("GLFW has been initialized.");
@@ -95,7 +98,7 @@ void Renderer::SetupWindow()
 		glfwDestroyWindow(m_window);
 		glfwTerminate();
 		spdlog::error("Could not create a window.");
-		return;
+		assert(false);
 	}
 
 	glfwMakeContextCurrent(m_window);
@@ -125,7 +128,7 @@ void Renderer::CreateInstance()
 	app_info.apiVersion = VK_API_VERSION_1_0;
 
 	// All Vulkan extensions required by the application
-	auto required_extensions = GetRequiredExtensions();
+	auto required_extensions = GetRequiredInstanceExtensions();
 
 	// Retrieve a list of all supported extensions
 	uint32_t extension_count = 0;
@@ -142,7 +145,7 @@ void Renderer::CreateInstance()
 	}
 
 	// Check whether all required extensions are supported on this system
-	for (auto & required_extension : required_extensions)
+	for (auto& required_extension : required_extensions)
 	{
 		bool found_extension = false;
 
@@ -153,7 +156,10 @@ void Renderer::CreateInstance()
 		}
 
 		if (!found_extension)
+		{
 			spdlog::error("\t\tGLFW requires the extension \"{}\" to be present, but it could not be found.\n", required_extension);
+			assert(false);
+		}
 	}
 
 	// Use validation layers in debug mode
@@ -229,7 +235,7 @@ bool vkc::Renderer::CheckValidationLayerSupport()
 	return true;
 }
 
-std::vector<const char*> Renderer::GetRequiredExtensions()
+std::vector<const char*> Renderer::GetRequiredInstanceExtensions()
 {
 	uint32_t glfw_required_extension_count = 0;
 	const char** glfw_extensions;
@@ -289,7 +295,7 @@ void Renderer::SelectPhysicalDevice()
 	if (physical_device_count == 0)
 	{
 		spdlog::error("No physical device on this computer has Vulkan support.");
-		return;
+		assert(false);
 	}
 
 	std::vector<VkPhysicalDevice> physical_devices(physical_device_count);
@@ -328,7 +334,7 @@ void Renderer::SelectPhysicalDevice()
 	if (!found_gpu_with_valid_score)
 	{
 		spdlog::error("Could not find a suitable GPU on this system.");
-		return;
+		assert(false);
 	}
 
 	// Try to find all required queue family indices
@@ -338,7 +344,25 @@ void Renderer::SelectPhysicalDevice()
 	if (!m_queue_family_indices.AllIndicesFound())
 	{
 		spdlog::error("Not all required queue family indices could be found on this system.");
-		return;
+		assert(false);
+	}
+
+	// Check whether all required device extensions are supported
+	if (!CheckPhysicalDeviceExtensionSupport())
+	{
+		spdlog::error("Not all required device extensions are available on this system.");
+		assert(false);
+	}
+
+	// Find out what kind of swapchain can be created
+	QuerySwapchainSupport();
+
+	// The swapchain is good enough if we have at least one presentation mode, and a supported image format
+	if (m_swap_chain_support.formats.empty() ||
+		m_swap_chain_support.present_modes.empty())
+	{
+		spdlog::error("Swapchain support is not adequate.");
+		assert(false);
 	}
 
 	VkPhysicalDeviceProperties gpu_properties;
@@ -447,6 +471,8 @@ void Renderer::CreateLogicalDevice()
 		queue_create_info.queueFamilyIndex = unique_index;
 		queue_create_info.queueCount = 1;
 		queue_create_info.pQueuePriorities = &queue_priority;
+
+		queue_create_infos.push_back(queue_create_info);
 	}
 
 	// #TODO: Add device features here once the application needs it
@@ -457,15 +483,193 @@ void Renderer::CreateLogicalDevice()
 	device_create_info.pQueueCreateInfos = queue_create_infos.data();
 	device_create_info.queueCreateInfoCount = static_cast<uint32_t>(queue_create_infos.size());
 	device_create_info.pEnabledFeatures = &device_features;
-	device_create_info.enabledExtensionCount = static_cast<uint32_t>(global_settings::logical_device_extension_names.size());
-	device_create_info.ppEnabledExtensionNames = global_settings::logical_device_extension_names.data();
+	device_create_info.enabledExtensionCount = static_cast<uint32_t>(global_settings::device_extension_names.size());
+	device_create_info.ppEnabledExtensionNames = global_settings::device_extension_names.data();
 	
 	if (vkCreateDevice(m_physical_device, &device_create_info, nullptr, &m_device) != VK_SUCCESS)
 		spdlog::error("Could not create a logical device.");
 
+	spdlog::info("Successfully created a logical device.");
+
 	// Queues are created as soon as the logical device is created, which means handles to the queues can be retrieved
 	vkGetDeviceQueue(m_device, m_queue_family_indices.graphics_family_index.value(), 0, &m_graphics_queue);
 	vkGetDeviceQueue(m_device, m_queue_family_indices.present_family_index.value(), 0, &m_present_queue);
+}
+
+bool Renderer::CheckPhysicalDeviceExtensionSupport()
+{
+	uint32_t extension_count = 0;
+	vkEnumerateDeviceExtensionProperties(m_physical_device, nullptr, &extension_count, nullptr);
+
+	if (extension_count == 0)
+	{
+		spdlog::error("Could not find any extensions on this system.");
+		return false;
+	}
+
+	std::vector<VkExtensionProperties> all_extensions(extension_count);
+	vkEnumerateDeviceExtensionProperties(m_physical_device, nullptr, &extension_count, all_extensions.data());
+
+	for (const auto& required_extension : global_settings::device_extension_names)
+	{
+		bool extension_found = false;
+
+		for (const auto& extension : all_extensions)
+		{
+			if (strcmp(required_extension, extension.extensionName) == 0)
+			{
+				extension_found = true;
+				break;
+			}
+		}
+
+		if (!extension_found)
+		{
+			spdlog::error("The extension \"{}\" is not available, but it is required by the application.", required_extension);
+			return false;
+		}
+	}
+
+	return true;
+}
+
+void Renderer::QuerySwapchainSupport()
+{
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physical_device, m_surface, &m_swap_chain_support.capabilities);
+
+	uint32_t format_count = 0;
+	vkGetPhysicalDeviceSurfaceFormatsKHR(m_physical_device, m_surface, &format_count, nullptr);
+
+	if (format_count == 0)
+	{
+		spdlog::error("No valid swapchain formats could be found.");
+		assert(false);
+	}
+
+	m_swap_chain_support.formats.resize(format_count);
+	vkGetPhysicalDeviceSurfaceFormatsKHR(m_physical_device, m_surface, &format_count, m_swap_chain_support.formats.data());
+
+	uint32_t present_mode_count = 0;
+	vkGetPhysicalDeviceSurfacePresentModesKHR(m_physical_device, m_surface, &present_mode_count, nullptr);
+	
+	if (present_mode_count == 0)
+	{
+		spdlog::error("No valid swapchain present modes could be found.");
+		assert(false);
+	}
+
+	m_swap_chain_support.present_modes.resize(present_mode_count);
+	vkGetPhysicalDeviceSurfacePresentModesKHR(m_physical_device, m_surface, &present_mode_count, m_swap_chain_support.present_modes.data());
+}
+
+VkSurfaceFormatKHR Renderer::ChooseSwapchainSurfaceFormat()
+{
+	// Vulkan has no preferred format, use our own preferred format
+	if (m_swap_chain_support.formats.size() == 1 && m_swap_chain_support.formats[0].format == VK_FORMAT_UNDEFINED)
+	{
+		return { VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR };
+	}
+
+	// Find the most optimal format out of all the preferred formats returned by this system
+	for (const auto& format : m_swap_chain_support.formats)
+	{
+		// Check if our preferred format is in the list of formats
+		if (format.format == VK_FORMAT_B8G8R8A8_UNORM && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+			return format;
+	}
+
+	// Our preferred format is not in the list, just use the first format, then...
+	return m_swap_chain_support.formats[0];
+}
+
+VkPresentModeKHR Renderer::ChooseSwapchainSurfacePresentMode()
+{
+	for (const auto& present_mode : m_swap_chain_support.present_modes)
+	{
+		// Ideally, the application can use the mailbox present mode
+		if (present_mode == VK_PRESENT_MODE_MAILBOX_KHR)
+			return present_mode;
+		// Less ideal, but still OK
+		else if (present_mode == VK_PRESENT_MODE_IMMEDIATE_KHR)
+			return present_mode;
+	}
+
+	// Just use the present mode that is guaranteed to be available
+	return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+VkExtent2D Renderer::ChooseSwapchainExtent()
+{
+	const auto& capabilities = m_swap_chain_support.capabilities;
+
+	// Use the default extent
+	if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
+		return capabilities.currentExtent;
+	
+	// Use the resolution that matches the window within the given extents the best
+	VkExtent2D extent = { global_settings::default_window_width, global_settings::default_window_height };
+
+	extent.width = std::max(capabilities.minImageExtent.width, std::min(capabilities.maxImageExtent.width, extent.width));
+	extent.height = std::max(capabilities.minImageExtent.height, std::min(capabilities.maxImageExtent.height, extent.height));
+
+	return extent;
+}
+
+void Renderer::CreateSwapchain()
+{
+	auto surface_format			= ChooseSwapchainSurfaceFormat();
+	auto surface_extent			= ChooseSwapchainExtent();
+	auto surface_present_mode	= ChooseSwapchainSurfacePresentMode();
+
+	// Make sure we have at least one more image than the recommended amount (to avoid having to wait on internal operations)
+	uint32_t image_count = m_swap_chain_support.capabilities.minImageCount + 1;
+
+	// Do not exceed the maximum allowed swapchain image count
+	if (m_swap_chain_support.capabilities.maxImageCount > 0 &&
+		image_count > m_swap_chain_support.capabilities.maxImageCount)
+	{
+		image_count = m_swap_chain_support.capabilities.maxImageCount;
+	}
+
+	// Queue families grouped in an array for easy access when filling out the swapchain create structure
+	uint32_t queue_families[] =
+	{
+		m_queue_family_indices.graphics_family_index.value(),
+		m_queue_family_indices.present_family_index.value()
+	};
+
+	VkSwapchainCreateInfoKHR create_info = {};
+	create_info.sType					= VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+	create_info.surface					= m_surface;
+	create_info.minImageCount			= image_count;
+	create_info.imageFormat				= surface_format.format;
+	create_info.imageColorSpace			= surface_format.colorSpace;
+	create_info.imageExtent				= surface_extent;
+	create_info.imageArrayLayers		= 1;
+	create_info.imageUsage				= VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+	create_info.preTransform			= m_swap_chain_support.capabilities.currentTransform;
+	create_info.compositeAlpha			= VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+	create_info.presentMode				= surface_present_mode;
+	create_info.clipped					= VK_TRUE;
+	create_info.oldSwapchain			= VK_NULL_HANDLE;
+
+	if (m_queue_family_indices.graphics_family_index.value() != m_queue_family_indices.present_family_index.value())
+	{
+		create_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+		create_info.queueFamilyIndexCount = sizeof(queue_families) / sizeof(uint32_t);
+		create_info.pQueueFamilyIndices = queue_families;
+	}
+	else
+	{
+		create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	}
+
+	if (vkCreateSwapchainKHR(m_device, &create_info, nullptr, &m_swapchain) != VK_SUCCESS)
+	{
+		spdlog::error("Could not create a swapchain.");
+	}
+
+	spdlog::info("Successfully created a swapchain.");
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL Renderer::DebugMessageCallback(

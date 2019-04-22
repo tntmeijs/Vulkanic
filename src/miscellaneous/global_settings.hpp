@@ -41,10 +41,11 @@ namespace vkc::global_settings
 	};
 
 	//////////////////////////////////////////////////////////////////////////
-	// VUlkan logical device extensions
+	// Vulkan device extensions
 	//////////////////////////////////////////////////////////////////////////
-	static const constexpr std::array<const char*, 0> logical_device_extension_names =
+	static const constexpr std::array<const char*, 1> device_extension_names =
 	{
 		// ADD ADDITIONAL REQUIRED EXTENSION NAMES HERE
+		"VK_KHR_swapchain"
 	};
 }

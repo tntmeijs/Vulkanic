@@ -32,6 +32,13 @@ namespace vkc
 		}
 	};
 
+	struct SwapchainSupportDetails
+	{
+		VkSurfaceCapabilitiesKHR capabilities;
+		std::vector<VkSurfaceFormatKHR> formats;
+		std::vector<VkPresentModeKHR> present_modes;
+	};
+
 	class Renderer
 	{
 	public:
@@ -46,13 +53,19 @@ namespace vkc
 	private:
 		void CreateInstance();
 		bool CheckValidationLayerSupport();
-		std::vector<const char*> GetRequiredExtensions();
+		std::vector<const char*> GetRequiredInstanceExtensions();
 		void SetUpDebugMessenger();
 		void CreateSurface();
 		void SelectPhysicalDevice();
 		uint32_t RatePhysicalDeviceSuitability(const VkPhysicalDevice& physical_device);
 		QueueFamilyIndices FindQueueFamiliesOfSelectedPhysicalDevice();
 		void CreateLogicalDevice();
+		bool CheckPhysicalDeviceExtensionSupport();
+		void QuerySwapchainSupport();
+		VkSurfaceFormatKHR ChooseSwapchainSurfaceFormat();
+		VkPresentModeKHR ChooseSwapchainSurfacePresentMode();
+		VkExtent2D ChooseSwapchainExtent();
+		void CreateSwapchain();
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -63,6 +76,7 @@ namespace vkc
 	private:
 		GLFWwindow* m_window;
 		QueueFamilyIndices m_queue_family_indices;
+		SwapchainSupportDetails m_swap_chain_support;
 
 		VkInstance m_instance;
 		VkDebugUtilsMessengerEXT m_debug_messenger;
@@ -71,5 +85,6 @@ namespace vkc
 		VkDevice m_device;
 		VkQueue m_graphics_queue;
 		VkQueue m_present_queue;
+		VkSwapchainKHR m_swapchain;
 	};
 }
