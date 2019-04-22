@@ -33,9 +33,17 @@ namespace vkc::global_settings
 	};
 
 	//////////////////////////////////////////////////////////////////////////
-	// Vulkan extensions
+	// Vulkan instance extensions
 	//////////////////////////////////////////////////////////////////////////
-	static const constexpr std::array<const char*, 0> extension_names =
+	static const constexpr std::array<const char*, 0> instance_extension_names =
+	{
+		// ADD ADDITIONAL REQUIRED EXTENSION NAMES HERE
+	};
+
+	//////////////////////////////////////////////////////////////////////////
+	// VUlkan logical device extensions
+	//////////////////////////////////////////////////////////////////////////
+	static const constexpr std::array<const char*, 0> logical_device_extension_names =
 	{
 		// ADD ADDITIONAL REQUIRED EXTENSION NAMES HERE
 	};

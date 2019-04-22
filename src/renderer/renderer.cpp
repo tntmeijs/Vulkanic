@@ -48,6 +48,8 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
+	vkDestroyDevice(m_device, nullptr);
+
 #ifdef _DEBUG
 	DestroyDebugUtilsMessengerEXT(m_instance, m_debug_messenger, nullptr);
 #endif
@@ -63,6 +65,7 @@ void Renderer::InitializeVulkan()
 	CreateInstance();
 	SetUpDebugMessenger();
 	SelectPhysicalDevice();
+	CreateLogicalDevice();
 }
 
 void Renderer::SetupWindow()
@@ -238,7 +241,7 @@ std::vector<const char*> Renderer::GetRequiredExtensions()
 #endif
 
 	// Add any additional extension names to the list specified in the global settings file
-	required_extensions.insert(required_extensions.end(), global_settings::extension_names.begin(), global_settings::extension_names.end());
+	required_extensions.insert(required_extensions.end(), global_settings::instance_extension_names.begin(), global_settings::instance_extension_names.end());
 
 	// Return the complete list of extensions
 	return required_extensions;
@@ -318,10 +321,10 @@ void Renderer::SelectPhysicalDevice()
 	}
 
 	// Try to find all required queue family indices
-	auto indices = FindQueueFamilies();
+	m_queue_family_indices = FindQueueFamiliesOfSelectedPhysicalDevice();
 
 	// If the device does not support all required queue families, it is not usable at all for this application
-	if (!indices.AllIndicesFound())
+	if (!m_queue_family_indices.AllIndicesFound())
 		return;
 
 	VkPhysicalDeviceProperties gpu_properties;
@@ -372,7 +375,7 @@ uint32_t Renderer::RatePhysicalDeviceSuitability(const VkPhysicalDevice& physica
 	return score;
 }
 
-QueueFamilyIndices Renderer::FindQueueFamilies()
+QueueFamilyIndices Renderer::FindQueueFamiliesOfSelectedPhysicalDevice()
 {
 	QueueFamilyIndices indices;
 
@@ -402,6 +405,34 @@ QueueFamilyIndices Renderer::FindQueueFamilies()
 	}
 
 	return indices;
+}
+
+void Renderer::CreateLogicalDevice()
+{
+	float queue_priority = 1.0f;
+
+	VkDeviceQueueCreateInfo queue_create_info = {};
+	queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+	queue_create_info.queueFamilyIndex = m_queue_family_indices.graphics_family_index.value();
+	queue_create_info.queueCount = 1;
+	queue_create_info.pQueuePriorities = &queue_priority;
+
+	// #TODO: Add device features here once the application needs it
+	VkPhysicalDeviceFeatures device_features = {};
+
+	VkDeviceCreateInfo device_create_info = {};
+	device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+	device_create_info.pQueueCreateInfos = &queue_create_info;
+	device_create_info.queueCreateInfoCount = 1;
+	device_create_info.pEnabledFeatures = &device_features;
+	device_create_info.enabledExtensionCount = static_cast<uint32_t>(global_settings::logical_device_extension_names.size());
+	device_create_info.ppEnabledExtensionNames = global_settings::logical_device_extension_names.data();
+	
+	if (vkCreateDevice(m_physical_device, &device_create_info, nullptr, &m_device) != VK_SUCCESS)
+		spdlog::error("Could not create a logical device.");
+
+	// Queues are created as soon as the logical device is created, which means handles to the queues can be retrieved
+	vkGetDeviceQueue(m_device, m_queue_family_indices.graphics_family_index.value(), 0, &m_graphics_queue);
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL Renderer::DebugMessageCallback(
