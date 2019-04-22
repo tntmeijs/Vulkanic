@@ -5,6 +5,11 @@
 #include "renderer.hpp"
 
 //////////////////////////////////////////////////////////////////////////
+
+// C++ standard
+#include <algorithm>
+
+//////////////////////////////////////////////////////////////////////////
 // Vulkan extension functions
 //////////////////////////////////////////////////////////////////////////
 
@@ -57,6 +62,7 @@ void Renderer::InitializeVulkan()
 {
 	CreateInstance();
 	SetUpDebugMessenger();
+	SelectPhysicalDevice();
 }
 
 void Renderer::SetupWindow()
@@ -261,13 +267,81 @@ void Renderer::SetUpDebugMessenger()
 	}
 }
 
+void Renderer::SelectPhysicalDevice()
+{
+	uint32_t physical_device_count = 0;
+	vkEnumeratePhysicalDevices(m_instance, &physical_device_count, nullptr);
+
+	if (physical_device_count == 0)
+	{
+		spdlog::error("No physical device on this computer has Vulkan support.");
+		return;
+	}
+
+	std::vector<VkPhysicalDevice> physical_devices(physical_device_count);
+	vkEnumeratePhysicalDevices(m_instance, &physical_device_count, physical_devices.data());
+
+	std::vector<std::pair<uint32_t, VkPhysicalDevice>> physical_device_scores;
+	physical_device_scores.reserve(physical_device_count);
+
+	// Rate the devices based on their capabilities
+	for (const auto& physical_device : physical_devices)
+	{
+		physical_device_scores.emplace_back(1, nullptr);
+		physical_device_scores.emplace_back(546, nullptr);
+		physical_device_scores.emplace_back(RatePhysicalDeviceSuitability(physical_device), physical_device);
+		physical_device_scores.emplace_back(1123, nullptr);
+		physical_device_scores.emplace_back(8, nullptr);
+		physical_device_scores.emplace_back(12, nullptr);
+	}
+
+	// Sort the vector in descending order, the first element will be the best GPU available
+	std::sort(physical_device_scores.begin(), physical_device_scores.end(), [](
+		const std::pair<uint32_t, VkPhysicalDevice>& a,
+		const std::pair<uint32_t, VkPhysicalDevice>& b)
+	{
+		return (a.first > b.first);
+	});
+
+	// Now that the GPUs have been sorted, it is safe to assume that the first element is the best GPU available
+	// However, if the score is zero, it means the GPU lacks certain required features
+	if (physical_device_scores[0].first == 0)
+	{
+		spdlog::error("Could not find a suitable GPU.");
+		return;
+	}
+
+	m_physical_device = physical_device_scores[0].second;
+}
+
+uint32_t Renderer::RatePhysicalDeviceSuitability(const VkPhysicalDevice& physical_device)
+{
+	uint32_t score = 0;
+
+	VkPhysicalDeviceProperties properties	= {};
+	VkPhysicalDeviceFeatures features		= {};
+
+	vkGetPhysicalDeviceProperties(physical_device, &properties);
+	vkGetPhysicalDeviceFeatures(physical_device, &features);
+
+	// A discrete GPU is always preferred, hence the big increase in score
+	if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+		score += 1000;
+
+	// #TODO: Add any additional checks (e.g. VK_NV_ray_tracing support, maximum texture size, etc.)
+	
+	// #TODO: If a REQUIRED feature is not present, return 0 (a score of 0 will not be accepted by the application)
+
+	return score;
+}
+
 VKAPI_ATTR VkBool32 VKAPI_CALL Renderer::DebugMessageCallback(
 	VkDebugUtilsMessageSeverityFlagBitsEXT severity,
 	VkDebugUtilsMessageTypeFlagsEXT type,
 	const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
 	void* user_data)
 {
-	// Suppress "unreferences formal parameter" warning when using warning level 4
+	// Suppress "unreferenced formal parameter" warning when using warning level 4
 	type;
 	user_data;
 

@@ -41,6 +41,8 @@ namespace vkc
 		bool CheckValidationLayerSupport();
 		std::vector<const char*> GetRequiredExtensions();
 		void SetUpDebugMessenger();
+		void SelectPhysicalDevice();
+		uint32_t RatePhysicalDeviceSuitability(const VkPhysicalDevice& physical_device);
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -53,5 +55,6 @@ namespace vkc
 
 		VkInstance m_instance;
 		VkDebugUtilsMessengerEXT m_debug_messenger;
+		VkPhysicalDevice m_physical_device;
 	};
 }
