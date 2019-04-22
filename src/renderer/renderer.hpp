@@ -24,10 +24,11 @@ namespace vkc
 	struct QueueFamilyIndices
 	{
 		std::optional<uint32_t> graphics_family_index;
+		std::optional<uint32_t> present_family_index;
 
 		bool AllIndicesFound()
 		{
-			return graphics_family_index.has_value();
+			return (graphics_family_index.has_value() && present_family_index.has_value());
 		}
 	};
 
@@ -47,11 +48,11 @@ namespace vkc
 		bool CheckValidationLayerSupport();
 		std::vector<const char*> GetRequiredExtensions();
 		void SetUpDebugMessenger();
+		void CreateSurface();
 		void SelectPhysicalDevice();
 		uint32_t RatePhysicalDeviceSuitability(const VkPhysicalDevice& physical_device);
 		QueueFamilyIndices FindQueueFamiliesOfSelectedPhysicalDevice();
 		void CreateLogicalDevice();
-		void CreateSurface();
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -65,9 +66,10 @@ namespace vkc
 
 		VkInstance m_instance;
 		VkDebugUtilsMessengerEXT m_debug_messenger;
+		VkSurfaceKHR m_surface;
 		VkPhysicalDevice m_physical_device;
 		VkDevice m_device;
 		VkQueue m_graphics_queue;
-		VkSurfaceKHR m_surface;
+		VkQueue m_present_queue;
 	};
 }

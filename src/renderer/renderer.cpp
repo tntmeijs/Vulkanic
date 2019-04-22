@@ -8,6 +8,7 @@
 
 // C++ standard
 #include <algorithm>
+#include <set>
 
 //////////////////////////////////////////////////////////////////////////
 // Vulkan extension functions
@@ -65,9 +66,9 @@ void Renderer::InitializeVulkan()
 {
 	CreateInstance();
 	SetUpDebugMessenger();
+	CreateSurface();
 	SelectPhysicalDevice();
 	CreateLogicalDevice();
-	CreateSurface();
 }
 
 void Renderer::SetupWindow()
@@ -272,6 +273,14 @@ void Renderer::SetUpDebugMessenger()
 	}
 }
 
+void Renderer::CreateSurface()
+{
+	if (glfwCreateWindowSurface(m_instance, m_window, nullptr, &m_surface) != VK_SUCCESS)
+	{
+		spdlog::error("Could not create a window surface.");
+	}
+}
+
 void Renderer::SelectPhysicalDevice()
 {
 	uint32_t physical_device_count = 0;
@@ -327,7 +336,10 @@ void Renderer::SelectPhysicalDevice()
 
 	// If the device does not support all required queue families, it is not usable at all for this application
 	if (!m_queue_family_indices.AllIndicesFound())
+	{
+		spdlog::error("Not all required queue family indices could be found on this system.");
 		return;
+	}
 
 	VkPhysicalDeviceProperties gpu_properties;
 	VkPhysicalDeviceMemoryProperties gpu_memory_properties;
@@ -393,11 +405,17 @@ QueueFamilyIndices Renderer::FindQueueFamiliesOfSelectedPhysicalDevice()
 	uint32_t index = 0;
 	for (const auto& queue_family : queue_families)
 	{
+		// Does this queue family support presenting?
+		VkBool32 present_supported = true;
+		vkGetPhysicalDeviceSurfaceSupportKHR(m_physical_device, index, m_surface, &present_supported);
+
+		// Look for a queue family that supports present operations
+		if (present_supported)
+			indices.present_family_index = index;
+
 		// Look for a queue family that supports graphics operations
 		if (queue_family.queueFlags & VK_QUEUE_GRAPHICS_BIT)
 			indices.graphics_family_index = index;
-
-		// #TODO: Add more queue family type checks here
 
 		// Stop searching once all queue family indices have been found
 		if (indices.AllIndicesFound())
@@ -413,19 +431,31 @@ void Renderer::CreateLogicalDevice()
 {
 	float queue_priority = 1.0f;
 
-	VkDeviceQueueCreateInfo queue_create_info = {};
-	queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-	queue_create_info.queueFamilyIndex = m_queue_family_indices.graphics_family_index.value();
-	queue_create_info.queueCount = 1;
-	queue_create_info.pQueuePriorities = &queue_priority;
+	// Eliminate duplicate family indices by using the set (guarantees unique values)
+	std::set<uint32_t> unique_family_indices =
+	{
+		m_queue_family_indices.graphics_family_index.value(),
+		m_queue_family_indices.present_family_index.value()
+	};
+	
+	std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
+
+	for (const auto& unique_index : unique_family_indices)
+	{
+		VkDeviceQueueCreateInfo queue_create_info = {};
+		queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+		queue_create_info.queueFamilyIndex = unique_index;
+		queue_create_info.queueCount = 1;
+		queue_create_info.pQueuePriorities = &queue_priority;
+	}
 
 	// #TODO: Add device features here once the application needs it
 	VkPhysicalDeviceFeatures device_features = {};
 
 	VkDeviceCreateInfo device_create_info = {};
 	device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	device_create_info.pQueueCreateInfos = &queue_create_info;
-	device_create_info.queueCreateInfoCount = 1;
+	device_create_info.pQueueCreateInfos = queue_create_infos.data();
+	device_create_info.queueCreateInfoCount = static_cast<uint32_t>(queue_create_infos.size());
 	device_create_info.pEnabledFeatures = &device_features;
 	device_create_info.enabledExtensionCount = static_cast<uint32_t>(global_settings::logical_device_extension_names.size());
 	device_create_info.ppEnabledExtensionNames = global_settings::logical_device_extension_names.data();
@@ -435,14 +465,7 @@ void Renderer::CreateLogicalDevice()
 
 	// Queues are created as soon as the logical device is created, which means handles to the queues can be retrieved
 	vkGetDeviceQueue(m_device, m_queue_family_indices.graphics_family_index.value(), 0, &m_graphics_queue);
-}
-
-void Renderer::CreateSurface()
-{
-	if (glfwCreateWindowSurface(m_instance, m_window, nullptr, &m_surface) != VK_SUCCESS)
-	{
-		spdlog::error("Could not create a window surface.");
-	}
+	vkGetDeviceQueue(m_device, m_queue_family_indices.present_family_index.value(), 0, &m_present_queue);
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL Renderer::DebugMessageCallback(
