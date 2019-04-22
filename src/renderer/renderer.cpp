@@ -670,6 +670,15 @@ void Renderer::CreateSwapchain()
 	}
 
 	spdlog::info("Successfully created a swapchain.");
+
+	// Get handles to the images in the swapchain
+	vkGetSwapchainImagesKHR(m_device, m_swapchain, &image_count, nullptr);
+	m_swapchain_images.resize(image_count);
+	vkGetSwapchainImagesKHR(m_device, m_swapchain, &image_count, m_swapchain_images.data());
+
+	// Store the format and extent of the swapchain for future use
+	m_swapchain_format = surface_format.format;
+	m_swapchain_extent = surface_extent;
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL Renderer::DebugMessageCallback(
