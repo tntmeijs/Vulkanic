@@ -287,12 +287,7 @@ void Renderer::SelectPhysicalDevice()
 	// Rate the devices based on their capabilities
 	for (const auto& physical_device : physical_devices)
 	{
-		physical_device_scores.emplace_back(1, nullptr);
-		physical_device_scores.emplace_back(546, nullptr);
 		physical_device_scores.emplace_back(RatePhysicalDeviceSuitability(physical_device), physical_device);
-		physical_device_scores.emplace_back(1123, nullptr);
-		physical_device_scores.emplace_back(8, nullptr);
-		physical_device_scores.emplace_back(12, nullptr);
 	}
 
 	// Sort the vector in descending order, the first element will be the best GPU available
