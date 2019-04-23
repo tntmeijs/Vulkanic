@@ -66,6 +66,7 @@ namespace vkc
 		VkPresentModeKHR ChooseSwapchainSurfacePresentMode();
 		VkExtent2D ChooseSwapchainExtent();
 		void CreateSwapchain();
+		void CreateSwapchainImageViews();
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -90,5 +91,6 @@ namespace vkc
 		VkExtent2D m_swapchain_extent;
 
 		std::vector<VkImage> m_swapchain_images;
+		std::vector<VkImageView> m_swapchain_image_views;
 	};
 }

@@ -50,6 +50,9 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
+	for (const auto& image_view : m_swapchain_image_views)
+		vkDestroyImageView(m_device, image_view, nullptr);
+
 	vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
 	vkDestroyDevice(m_device, nullptr);
 
@@ -72,6 +75,7 @@ void Renderer::InitializeVulkan()
 	SelectPhysicalDevice();
 	CreateLogicalDevice();
 	CreateSwapchain();
+	CreateSwapchainImageViews();
 }
 
 void Renderer::SetupWindow()
@@ -679,6 +683,43 @@ void Renderer::CreateSwapchain()
 	// Store the format and extent of the swapchain for future use
 	m_swapchain_format = surface_format.format;
 	m_swapchain_extent = surface_extent;
+}
+
+void Renderer::CreateSwapchainImageViews()
+{
+	m_swapchain_image_views.resize(m_swapchain_images.size());
+
+	uint32_t index = 0;
+	for (const auto& image : m_swapchain_images)
+	{
+		VkImageViewCreateInfo image_view_create_info = {};
+		image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+		image_view_create_info.image = image;
+		image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+		image_view_create_info.format = m_swapchain_format;
+		image_view_create_info.components =
+		{
+			VK_COMPONENT_SWIZZLE_IDENTITY,	// R
+			VK_COMPONENT_SWIZZLE_IDENTITY,	// G
+			VK_COMPONENT_SWIZZLE_IDENTITY,	// B
+			VK_COMPONENT_SWIZZLE_IDENTITY	// A
+		};
+		image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		image_view_create_info.subresourceRange.baseMipLevel = 0;
+		image_view_create_info.subresourceRange.levelCount = 1;
+		image_view_create_info.subresourceRange.baseArrayLayer = 0;
+		image_view_create_info.subresourceRange.layerCount = 1;
+
+		if (vkCreateImageView(m_device, &image_view_create_info, nullptr, &m_swapchain_image_views[index]) != VK_SUCCESS)
+		{
+			spdlog::error("Could not create an image view for the swapchain image.");
+			assert(false);
+		}
+
+		++index;
+	}
+
+	spdlog::info("Successfully created image views for all swapchain images.");
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL Renderer::DebugMessageCallback(
