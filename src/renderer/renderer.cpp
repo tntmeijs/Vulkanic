@@ -8,6 +8,7 @@
 
 // C++ standard
 #include <algorithm>
+#include <fstream>
 #include <set>
 #include <string>
 
@@ -76,6 +77,7 @@ void Renderer::InitializeVulkan()
 	CreateLogicalDevice();
 	CreateSwapchain();
 	CreateSwapchainImageViews();
+	CreateGraphicsPipeline();
 }
 
 void Renderer::SetupWindow()
@@ -722,6 +724,39 @@ void Renderer::CreateSwapchainImageViews()
 	spdlog::info("Successfully created image views for all swapchain images.");
 }
 
+void Renderer::CreateGraphicsPipeline()
+{
+	auto vertex_shader_code = ReadSPRIVFromFile("./resources/shaders/hard_coded_triangle_vert.spv");
+	auto fragment_shader_code = ReadSPRIVFromFile("./resources/shaders/hard_coded_triangle_frag.spv");
+
+	auto vertex_shader_module = CreateShaderModule(vertex_shader_code);
+	auto fragment_shader_module = CreateShaderModule(fragment_shader_code);
+
+	// #TODO: Create pipelines here
+
+	vkDestroyShaderModule(m_device, vertex_shader_module, nullptr);
+	vkDestroyShaderModule(m_device, fragment_shader_module, nullptr);
+}
+
+VkShaderModule Renderer::CreateShaderModule(const std::vector<char>& spirv)
+{
+	VkShaderModule shader_module;
+	VkShaderModuleCreateInfo create_info = {};
+	create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+	create_info.codeSize = spirv.size();
+	create_info.pCode = reinterpret_cast<const uint32_t*>(spirv.data());
+
+	if (vkCreateShaderModule(m_device, &create_info, nullptr, &shader_module) != VK_SUCCESS)
+	{
+		spdlog::error("Could not create a shader module.");
+		return VK_NULL_HANDLE;
+	}
+
+	spdlog::info("Shader module created successfully.");
+
+	return shader_module;
+}
+
 VKAPI_ATTR VkBool32 VKAPI_CALL Renderer::DebugMessageCallback(
 	VkDebugUtilsMessageSeverityFlagBitsEXT severity,
 	VkDebugUtilsMessageTypeFlagsEXT type,
@@ -737,4 +772,29 @@ VKAPI_ATTR VkBool32 VKAPI_CALL Renderer::DebugMessageCallback(
 		spdlog::warn("Validation layer: {}", callback_data->pMessage);
 
 	return VK_FALSE;
+}
+
+std::vector<char> Renderer::ReadSPRIVFromFile(const char* file)
+{
+	std::ifstream source_code(file, std::ios::ate | std::ios::binary);
+
+	if (!source_code.is_open())
+	{
+		spdlog::error("Could not open \"{}\".", file);
+		return std::vector<char>();
+	}
+
+	// Get the size of the entire shader source file (the file is opened with the position set to end, so this will
+	// return the size of the entire file.
+	auto shader_code_size = source_code.tellg();
+
+	std::vector<char> spirv(shader_code_size);
+
+	// Move to the beginning of the file
+	source_code.seekg(0);
+	source_code.read(spirv.data(), shader_code_size);
+
+	spdlog::info("Successfully read the shader \"{}\".", file);
+
+	return spirv;
 }

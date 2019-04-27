@@ -67,12 +67,16 @@ namespace vkc
 		VkExtent2D ChooseSwapchainExtent();
 		void CreateSwapchain();
 		void CreateSwapchainImageViews();
+		void CreateGraphicsPipeline();
+		VkShaderModule CreateShaderModule(const std::vector<char>& spirv);
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT severity,
 			VkDebugUtilsMessageTypeFlagsEXT type,
 			const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
 			void* user_data);
+
+		static std::vector<char> ReadSPRIVFromFile(const char* file);
 
 	private:
 		GLFWwindow* m_window;
