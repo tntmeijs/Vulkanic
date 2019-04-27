@@ -732,7 +732,24 @@ void Renderer::CreateGraphicsPipeline()
 	auto vertex_shader_module = CreateShaderModule(vertex_shader_code);
 	auto fragment_shader_module = CreateShaderModule(fragment_shader_code);
 
-	// #TODO: Create pipelines here
+	VkPipelineShaderStageCreateInfo vertex_shader_stage_info = {};
+	vertex_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	vertex_shader_stage_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
+	vertex_shader_stage_info.module = vertex_shader_module;
+	vertex_shader_stage_info.pName = "main";
+
+	VkPipelineShaderStageCreateInfo fragment_shader_stage_info = {};
+	fragment_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+	fragment_shader_stage_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+	fragment_shader_stage_info.module = fragment_shader_module;
+	fragment_shader_stage_info.pName = "main";
+
+	// Allows for easy access when creating the pipeline
+	VkPipelineShaderStageCreateInfo pipeline_shader_stages[] =
+	{
+		vertex_shader_stage_info,
+		fragment_shader_stage_info
+	};
 
 	vkDestroyShaderModule(m_device, vertex_shader_module, nullptr);
 	vkDestroyShaderModule(m_device, fragment_shader_module, nullptr);
