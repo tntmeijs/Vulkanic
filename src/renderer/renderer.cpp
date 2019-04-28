@@ -146,7 +146,7 @@ void Renderer::CreateInstance()
 	vkEnumerateInstanceExtensionProperties(nullptr, &extension_count, extensions.data());
 
 	// Log all available extensions
-	spdlog::info("Found the following available extensions:");
+	spdlog::info("Found the following available instance extensions:");
 	for (const auto& extension : extensions)
 	{
 		spdlog::info("  > {}", extension.extensionName);
@@ -517,6 +517,13 @@ bool Renderer::CheckPhysicalDeviceExtensionSupport()
 
 	std::vector<VkExtensionProperties> all_extensions(extension_count);
 	vkEnumerateDeviceExtensionProperties(m_physical_device, nullptr, &extension_count, all_extensions.data());
+
+	// Log all available device extensions
+	spdlog::info("Found the following available device extensions:");
+	for (const auto& extension : all_extensions)
+	{
+		spdlog::info("  > {}", extension.extensionName);
+	}
 
 	for (const auto& required_extension : global_settings::device_extension_names)
 	{
