@@ -51,6 +51,8 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
+	vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
+
 	for (const auto& image_view : m_swapchain_image_views)
 		vkDestroyImageView(m_device, image_view, nullptr);
 
@@ -751,6 +753,83 @@ void Renderer::CreateGraphicsPipeline()
 		fragment_shader_stage_info
 	};
 
+	// Describe the vertex data format
+	VkPipelineVertexInputStateCreateInfo vertex_input_info = {};
+	vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertex_input_info.vertexBindingDescriptionCount = 0;
+	vertex_input_info.vertexAttributeDescriptionCount = 0;
+
+	// Describe geometry and if primitive restart should be enabled
+	VkPipelineInputAssemblyStateCreateInfo input_assembly_state = {};
+	input_assembly_state.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+	input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+	input_assembly_state.primitiveRestartEnable = VK_FALSE;
+
+	// Configure the viewport
+	VkViewport viewport = {};
+	viewport.x = 0.0f;
+	viewport.y = 0.0f;
+	viewport.width = static_cast<float>(m_swapchain_extent.width);
+	viewport.height = static_cast<float>(m_swapchain_extent.height);
+	viewport.minDepth = 0.0f;
+	viewport.maxDepth = 1.0f;
+
+	// Configure the scissor rectangle
+	VkRect2D scissor_rect = {};
+	scissor_rect.offset = { 0, 0 };
+	scissor_rect.extent = m_swapchain_extent;
+
+	// Combine the viewport and scissor rectangle settings into a viewport structure
+	VkPipelineViewportStateCreateInfo viewport_state = {};
+	viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+	viewport_state.viewportCount = 1;
+	viewport_state.pViewports = &viewport;
+	viewport_state.scissorCount = 1;
+	viewport_state.pScissors = &scissor_rect;
+
+	// Configure the rasterizer
+	VkPipelineRasterizationStateCreateInfo rasterizer = {};
+	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterizer.depthClampEnable = VK_FALSE;
+	rasterizer.rasterizerDiscardEnable = VK_FALSE;
+	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterizer.lineWidth = 1.0f;
+	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rasterizer.depthBiasEnable = VK_FALSE;
+
+	// Configure multisampling
+	VkPipelineMultisampleStateCreateInfo multisampling = {};
+	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisampling.sampleShadingEnable = VK_FALSE;
+	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+	// Color blending
+	VkPipelineColorBlendAttachmentState color_blend_attachment = {};
+	color_blend_attachment.colorWriteMask =
+		VK_COLOR_COMPONENT_R_BIT |
+		VK_COLOR_COMPONENT_G_BIT |
+		VK_COLOR_COMPONENT_B_BIT |
+		VK_COLOR_COMPONENT_A_BIT;
+	color_blend_attachment.blendEnable = VK_FALSE;
+
+	VkPipelineColorBlendStateCreateInfo color_blending = {};
+	color_blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	color_blending.logicOpEnable = VK_FALSE;
+	color_blending.attachmentCount = 1;
+	color_blending.pAttachments = &color_blend_attachment;
+
+	// Pipeline layout
+	VkPipelineLayoutCreateInfo pipeline_layout_info = {};
+	pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+
+	if (vkCreatePipelineLayout(m_device, &pipeline_layout_info, nullptr, &m_pipeline_layout) != VK_SUCCESS)
+		spdlog::error("Could not create a pipeline layout.");
+
+	spdlog::info("Successfully created a pipeline layout.");
+
+	// Get rid of the shader modules, as they are no longer needed after the
+	// pipeline has been created
 	vkDestroyShaderModule(m_device, vertex_shader_module, nullptr);
 	vkDestroyShaderModule(m_device, fragment_shader_module, nullptr);
 }
@@ -802,7 +881,7 @@ std::vector<char> Renderer::ReadSPRIVFromFile(const char* file)
 	}
 
 	// Get the size of the entire shader source file (the file is opened with the position set to end, so this will
-	// return the size of the entire file.
+	// return the size of the entire file
 	auto shader_code_size = source_code.tellg();
 
 	std::vector<char> spirv(shader_code_size);

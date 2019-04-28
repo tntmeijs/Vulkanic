@@ -93,6 +93,7 @@ namespace vkc
 		VkSwapchainKHR m_swapchain;
 		VkFormat m_swapchain_format;
 		VkExtent2D m_swapchain_extent;
+		VkPipelineLayout m_pipeline_layout;
 
 		std::vector<VkImage> m_swapchain_images;
 		std::vector<VkImageView> m_swapchain_image_views;
