@@ -51,6 +51,8 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
+	vkDestroySemaphore(m_device, m_image_available_semaphore, nullptr);
+	vkDestroySemaphore(m_device, m_render_finished_semaphore, nullptr);
 	vkDestroyCommandPool(m_device, m_command_pool, nullptr);
 
 	for (const auto& framebuffer : m_swapchain_framebuffers)
@@ -91,6 +93,7 @@ void Renderer::InitializeVulkan()
 	CreateFramebuffers();
 	CreateCommandPool();
 	CreateCommandBuffers();
+	CreateSemaphores();
 }
 
 void Renderer::SetupWindow()
@@ -123,6 +126,52 @@ void Renderer::SetupWindow()
 	glfwMakeContextCurrent(m_window);
 
 	spdlog::info("A window has been created.");
+}
+
+void Renderer::Draw()
+{
+	// The frame index stores the index of the swapchain image that is available for writing
+	uint32_t frame_index = 0;
+
+	// Retrieve an image from the swapchain for writing (wait indefinitely for the image to become available)
+	vkAcquireNextImageKHR(m_device, m_swapchain, std::numeric_limits<uint64_t>::max(), m_image_available_semaphore, VK_NULL_HANDLE, &frame_index);
+	
+	// Wait on these semaphores before execution can start
+	VkSemaphore wait_semaphores[] = { m_image_available_semaphore };
+
+	// Signal these semaphores once execution finishes
+	VkSemaphore signal_semaphores[] = { m_render_finished_semaphore };
+
+	// Wait in these stages of the pipeline on the semaphores
+	VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
+
+	VkSubmitInfo submit_info = {};
+	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submit_info.waitSemaphoreCount = sizeof(wait_semaphores) / sizeof(wait_semaphores[0]);
+	submit_info.pWaitSemaphores = wait_semaphores;
+	submit_info.pWaitDstStageMask = wait_stages;
+	submit_info.commandBufferCount = 1;
+	submit_info.pCommandBuffers = &m_command_buffers[frame_index];
+	submit_info.signalSemaphoreCount = sizeof(signal_semaphores) / sizeof(signal_semaphores[0]);
+	submit_info.pSignalSemaphores = signal_semaphores;
+
+	// Submit the command queue
+	if (vkQueueSubmit(m_graphics_queue, 1, &submit_info, VK_NULL_HANDLE) != VK_SUCCESS)
+	{
+		spdlog::error("Could not submit the queue for frame #{}.", frame_index);
+		return;
+	}
+
+	VkPresentInfoKHR present_info = {};
+	present_info.sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
+	present_info.waitSemaphoreCount = sizeof(signal_semaphores) / sizeof(signal_semaphores[0]);
+	present_info.pWaitSemaphores = signal_semaphores;
+	present_info.swapchainCount = 1;
+	present_info.pSwapchains = &m_swapchain;
+	present_info.pImageIndices = &frame_index;
+
+	// Request to present an image to the swapchain
+	vkQueuePresentKHR(m_present_queue, &present_info);
 }
 
 GLFWwindow* const Renderer::GetHandle() const
@@ -912,12 +961,22 @@ void Renderer::CreateRenderPass()
 	subpass.colorAttachmentCount = 1;
 	subpass.pColorAttachments = &color_attachment_ref;
 
+	VkSubpassDependency subpass_dependency = {};
+	subpass_dependency.srcSubpass = VK_SUBPASS_EXTERNAL;
+	subpass_dependency.dstSubpass = 0;
+	subpass_dependency.srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	subpass_dependency.srcAccessMask = 0;
+	subpass_dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+	subpass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+
 	VkRenderPassCreateInfo render_pass_info = {};
 	render_pass_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
 	render_pass_info.attachmentCount = 1;
 	render_pass_info.pAttachments = &color_attachment;
 	render_pass_info.subpassCount = 1;
 	render_pass_info.pSubpasses = &subpass;
+	render_pass_info.dependencyCount = 1;
+	render_pass_info.pDependencies = &subpass_dependency;
 
 	if (vkCreateRenderPass(m_device, &render_pass_info, nullptr, &m_render_pass) != VK_SUCCESS)
 	{
@@ -1042,6 +1101,19 @@ void Renderer::CreateCommandBuffers()
 		}
 
 		++index;
+	}
+}
+
+void Renderer::CreateSemaphores()
+{
+	VkSemaphoreCreateInfo semaphore_create_info = {};
+	semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+
+	if (vkCreateSemaphore(m_device, &semaphore_create_info, nullptr, &m_image_available_semaphore) != VK_SUCCESS ||
+		vkCreateSemaphore(m_device, &semaphore_create_info, nullptr, &m_render_finished_semaphore) != VK_SUCCESS)
+	{
+		spdlog::error("Could not create one or both semaphores.");
+		return;
 	}
 }
 

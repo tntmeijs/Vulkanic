@@ -47,6 +47,7 @@ namespace vkc
 
 		void InitializeVulkan();
 		void SetupWindow();
+		void Draw();
 
 		GLFWwindow* const GetHandle() const;
 
@@ -73,6 +74,7 @@ namespace vkc
 		void CreateFramebuffers();
 		void CreateCommandPool();
 		void CreateCommandBuffers();
+		void CreateSemaphores();
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -101,6 +103,8 @@ namespace vkc
 		VkPipelineLayout m_pipeline_layout;
 		VkPipeline m_graphics_pipeline;
 		VkCommandPool m_command_pool;
+		VkSemaphore m_image_available_semaphore;
+		VkSemaphore m_render_finished_semaphore;
 
 		std::vector<VkImage> m_swapchain_images;
 		std::vector<VkImageView> m_swapchain_image_views;

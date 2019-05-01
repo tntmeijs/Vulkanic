@@ -28,6 +28,7 @@ int main(int argc, char* argv[])
 	while (!glfwWindowShouldClose(window_handle))
 	{
 		glfwPollEvents();
+		renderer.Draw();
 	}
 
     return 0;
