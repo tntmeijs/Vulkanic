@@ -51,6 +51,8 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
+	vkDestroyCommandPool(m_device, m_command_pool, nullptr);
+
 	for (const auto& framebuffer : m_swapchain_framebuffers)
 		vkDestroyFramebuffer(m_device, framebuffer, nullptr);
 
@@ -87,6 +89,7 @@ void Renderer::InitializeVulkan()
 	CreateRenderPass();
 	CreateGraphicsPipeline();
 	CreateFramebuffers();
+	CreateCommandPool();
 }
 
 void Renderer::SetupWindow()
@@ -951,6 +954,21 @@ void Renderer::CreateFramebuffers()
 	}
 
 	spdlog::info("Successfully created a framebuffer for each swapchain image view.");
+}
+
+void Renderer::CreateCommandPool()
+{
+	VkCommandPoolCreateInfo pool_info = {};
+	pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	pool_info.queueFamilyIndex = m_queue_family_indices.graphics_family_index.value();
+
+	if (vkCreateCommandPool(m_device, &pool_info, nullptr, &m_command_pool) != VK_SUCCESS)
+	{
+		spdlog::error("Could not create a command pool.");
+		return;
+	}
+
+	spdlog::info("Successfully created a command pool.");
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL Renderer::DebugMessageCallback(
