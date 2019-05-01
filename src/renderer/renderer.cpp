@@ -51,6 +51,9 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
+	// Wait until the GPU finishes the current operation before cleaning-up resources
+	vkDeviceWaitIdle(m_device);
+
 	vkDestroySemaphore(m_device, m_image_available_semaphore, nullptr);
 	vkDestroySemaphore(m_device, m_render_finished_semaphore, nullptr);
 	vkDestroyCommandPool(m_device, m_command_pool, nullptr);
