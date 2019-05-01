@@ -70,6 +70,7 @@ namespace vkc
 		void CreateGraphicsPipeline();
 		VkShaderModule CreateShaderModule(const std::vector<char>& spirv);
 		void CreateRenderPass();
+		void CreateFramebuffers();
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -100,5 +101,6 @@ namespace vkc
 
 		std::vector<VkImage> m_swapchain_images;
 		std::vector<VkImageView> m_swapchain_image_views;
+		std::vector<VkFramebuffer> m_swapchain_framebuffers;
 	};
 }
