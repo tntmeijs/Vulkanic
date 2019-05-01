@@ -69,6 +69,7 @@ namespace vkc
 		void CreateSwapchainImageViews();
 		void CreateGraphicsPipeline();
 		VkShaderModule CreateShaderModule(const std::vector<char>& spirv);
+		void CreateRenderPass();
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -93,6 +94,7 @@ namespace vkc
 		VkSwapchainKHR m_swapchain;
 		VkFormat m_swapchain_format;
 		VkExtent2D m_swapchain_extent;
+		VkRenderPass m_render_pass;
 		VkPipelineLayout m_pipeline_layout;
 
 		std::vector<VkImage> m_swapchain_images;
