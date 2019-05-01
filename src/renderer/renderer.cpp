@@ -90,6 +90,7 @@ void Renderer::InitializeVulkan()
 	CreateGraphicsPipeline();
 	CreateFramebuffers();
 	CreateCommandPool();
+	CreateCommandBuffers();
 }
 
 void Renderer::SetupWindow()
@@ -969,6 +970,79 @@ void Renderer::CreateCommandPool()
 	}
 
 	spdlog::info("Successfully created a command pool.");
+}
+
+void Renderer::CreateCommandBuffers()
+{
+	// We need one command buffer per swapchain framebuffer
+	m_command_buffers.resize(m_swapchain_framebuffers.size());
+
+	VkCommandBufferAllocateInfo allocate_info = {};
+	allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocate_info.commandPool = m_command_pool;
+	allocate_info.commandBufferCount = static_cast<uint32_t>(m_command_buffers.size());
+	allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+
+	// Allocate the command buffers
+	if (vkAllocateCommandBuffers(m_device, &allocate_info, m_command_buffers.data()) != VK_SUCCESS)
+	{
+		spdlog::error("Could not allocate command buffers.");
+		return;
+	}
+
+	spdlog::info("Successfully allocated command buffers.");
+
+	// Index tracking for the range-based for-loop
+	uint32_t index = 0;
+
+	// Record commands into command buffers
+	for (const auto& command_buffer : m_command_buffers)
+	{
+		VkCommandBufferBeginInfo begin_info = {};
+		begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+		begin_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
+		
+		// Begin recording
+		if (vkBeginCommandBuffer(command_buffer, &begin_info) != VK_SUCCESS)
+		{
+			spdlog::error("Could not begin recording to command buffer #{}.", index);
+			return;
+		}
+
+		// Black clear color
+		VkClearValue clear_color = { 0.0f, 0.0f, 0.0f, 1.0f };
+
+		// Prepare the render pass
+		VkRenderPassBeginInfo render_pass_begin_info = {};
+		render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
+		render_pass_begin_info.renderPass = m_render_pass;
+		render_pass_begin_info.framebuffer = m_swapchain_framebuffers[index];
+		render_pass_begin_info.renderArea.offset = { 0, 0 };
+		render_pass_begin_info.renderArea.extent = m_swapchain_extent;
+		render_pass_begin_info.clearValueCount = 1;
+		render_pass_begin_info.pClearValues = &clear_color;
+
+		// Start the render pass
+		vkCmdBeginRenderPass(m_command_buffers[index], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+
+		// Bind the graphics pipeline
+		vkCmdBindPipeline(m_command_buffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics_pipeline);
+
+		// Draw the triangle using hard-coded shader vertices
+		vkCmdDraw(m_command_buffers[index], 3, 1, 0, 0);
+
+		// End the render pass
+		vkCmdEndRenderPass(m_command_buffers[index]);
+
+		// Finish recording
+		if (vkEndCommandBuffer(m_command_buffers[index]) != VK_SUCCESS)
+		{
+			spdlog::error("Could not record to command buffer #{}.", index);
+			return;
+		}
+
+		++index;
+	}
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL Renderer::DebugMessageCallback(
