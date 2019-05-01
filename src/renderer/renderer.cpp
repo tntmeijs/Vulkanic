@@ -51,6 +51,7 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
+	vkDestroyPipeline(m_device, m_graphics_pipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
 	vkDestroyRenderPass(m_device, m_render_pass, nullptr);
 
@@ -763,10 +764,10 @@ void Renderer::CreateGraphicsPipeline()
 	};
 
 	// Describe the vertex data format
-	VkPipelineVertexInputStateCreateInfo vertex_input_info = {};
-	vertex_input_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertex_input_info.vertexBindingDescriptionCount = 0;
-	vertex_input_info.vertexAttributeDescriptionCount = 0;
+	VkPipelineVertexInputStateCreateInfo vertex_input_state = {};
+	vertex_input_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+	vertex_input_state.vertexBindingDescriptionCount = 0;
+	vertex_input_state.vertexAttributeDescriptionCount = 0;
 
 	// Describe geometry and if primitive restart should be enabled
 	VkPipelineInputAssemblyStateCreateInfo input_assembly_state = {};
@@ -797,21 +798,21 @@ void Renderer::CreateGraphicsPipeline()
 	viewport_state.pScissors = &scissor_rect;
 
 	// Configure the rasterizer
-	VkPipelineRasterizationStateCreateInfo rasterizer = {};
-	rasterizer.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-	rasterizer.depthClampEnable = VK_FALSE;
-	rasterizer.rasterizerDiscardEnable = VK_FALSE;
-	rasterizer.polygonMode = VK_POLYGON_MODE_FILL;
-	rasterizer.lineWidth = 1.0f;
-	rasterizer.cullMode = VK_CULL_MODE_BACK_BIT;
-	rasterizer.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-	rasterizer.depthBiasEnable = VK_FALSE;
+	VkPipelineRasterizationStateCreateInfo rasterization_state = {};
+	rasterization_state.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+	rasterization_state.depthClampEnable = VK_FALSE;
+	rasterization_state.rasterizerDiscardEnable = VK_FALSE;
+	rasterization_state.polygonMode = VK_POLYGON_MODE_FILL;
+	rasterization_state.lineWidth = 1.0f;
+	rasterization_state.cullMode = VK_CULL_MODE_BACK_BIT;
+	rasterization_state.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+	rasterization_state.depthBiasEnable = VK_FALSE;
 
-	// Configure multisampling
-	VkPipelineMultisampleStateCreateInfo multisampling = {};
-	multisampling.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	multisampling.sampleShadingEnable = VK_FALSE;
-	multisampling.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+	// Configure multi sampling
+	VkPipelineMultisampleStateCreateInfo multisample_state = {};
+	multisample_state.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+	multisample_state.sampleShadingEnable = VK_FALSE;
+	multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
 	// Color blending
 	VkPipelineColorBlendAttachmentState color_blend_attachment = {};
@@ -822,11 +823,11 @@ void Renderer::CreateGraphicsPipeline()
 		VK_COLOR_COMPONENT_A_BIT;
 	color_blend_attachment.blendEnable = VK_FALSE;
 
-	VkPipelineColorBlendStateCreateInfo color_blending = {};
-	color_blending.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	color_blending.logicOpEnable = VK_FALSE;
-	color_blending.attachmentCount = 1;
-	color_blending.pAttachments = &color_blend_attachment;
+	VkPipelineColorBlendStateCreateInfo color_blend_state = {};
+	color_blend_state.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+	color_blend_state.logicOpEnable = VK_FALSE;
+	color_blend_state.attachmentCount = 1;
+	color_blend_state.pAttachments = &color_blend_attachment;
 
 	// Pipeline layout
 	VkPipelineLayoutCreateInfo pipeline_layout_info = {};
@@ -836,6 +837,26 @@ void Renderer::CreateGraphicsPipeline()
 		spdlog::error("Could not create a pipeline layout.");
 
 	spdlog::info("Successfully created a pipeline layout.");
+
+	// Create the graphics pipeline
+	VkGraphicsPipelineCreateInfo pipeline_info = {};
+	pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+	pipeline_info.stageCount = 2;
+	pipeline_info.pStages = pipeline_shader_stages;
+	pipeline_info.pVertexInputState = &vertex_input_state;
+	pipeline_info.pInputAssemblyState = &input_assembly_state;
+	pipeline_info.pViewportState = &viewport_state;
+	pipeline_info.pRasterizationState = &rasterization_state;
+	pipeline_info.pMultisampleState = &multisample_state;
+	pipeline_info.pColorBlendState = &color_blend_state;
+	pipeline_info.layout = m_pipeline_layout;
+	pipeline_info.renderPass = m_render_pass;
+	pipeline_info.subpass = 0;
+
+	if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &m_graphics_pipeline) != VK_SUCCESS)
+		spdlog::error("Could not create a graphics pipeline.");
+	else
+		spdlog::info("Successfully created a graphics pipeline.");
 
 	// Get rid of the shader modules, as they are no longer needed after the
 	// pipeline has been created

@@ -96,6 +96,7 @@ namespace vkc
 		VkExtent2D m_swapchain_extent;
 		VkRenderPass m_render_pass;
 		VkPipelineLayout m_pipeline_layout;
+		VkPipeline m_graphics_pipeline;
 
 		std::vector<VkImage> m_swapchain_images;
 		std::vector<VkImageView> m_swapchain_image_views;
