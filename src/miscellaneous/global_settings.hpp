@@ -11,7 +11,7 @@
 namespace vkc::global_settings
 {
 	//////////////////////////////////////////////////////////////////////////
-	// Window dimensions, application name, engine name, window title, version
+	// Window dimensions, application name, engine name, window title, etc.
 	//////////////////////////////////////////////////////////////////////////
 
 	static const constexpr uint32_t default_window_width	= 1280;
@@ -23,6 +23,8 @@ namespace vkc::global_settings
 
 	static const constexpr uint32_t application_version[3]	= { 1, 0, 0 };
 	static const constexpr uint32_t engine_version[3]		= { 1, 0, 0 };
+
+	static const constexpr uint32_t maximum_in_flight_frame_count = 2;
 
 	//////////////////////////////////////////////////////////////////////////
 	// Vulkan validation layers

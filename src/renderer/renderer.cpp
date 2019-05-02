@@ -47,6 +47,7 @@ using namespace vkc;
 
 Renderer::Renderer()
 	: m_window(nullptr)
+	, m_frame_index(0)
 {}
 
 Renderer::~Renderer()
@@ -54,8 +55,17 @@ Renderer::~Renderer()
 	// Wait until the GPU finishes the current operation before cleaning-up resources
 	vkDeviceWaitIdle(m_device);
 
-	vkDestroySemaphore(m_device, m_image_available_semaphore, nullptr);
-	vkDestroySemaphore(m_device, m_render_finished_semaphore, nullptr);
+	for (auto index = 0; index < global_settings::maximum_in_flight_frame_count; ++index)
+	{
+		vkDestroySemaphore(m_device, m_in_flight_frame_image_available_semaphores[index], nullptr);
+		vkDestroySemaphore(m_device, m_in_flight_render_finished_semaphores[index], nullptr);
+	}
+
+	for (auto index = 0; index < global_settings::maximum_in_flight_frame_count; ++index)
+	{
+		vkDestroyFence(m_device, m_in_flight_fences[index], nullptr);
+	}
+	
 	vkDestroyCommandPool(m_device, m_command_pool, nullptr);
 
 	for (const auto& framebuffer : m_swapchain_framebuffers)
@@ -96,7 +106,7 @@ void Renderer::InitializeVulkan()
 	CreateFramebuffers();
 	CreateCommandPool();
 	CreateCommandBuffers();
-	CreateSemaphores();
+	CreateSynchronizationObjects();
 }
 
 void Renderer::SetupWindow()
@@ -133,17 +143,23 @@ void Renderer::SetupWindow()
 
 void Renderer::Draw()
 {
-	// The frame index stores the index of the swapchain image that is available for writing
-	uint32_t frame_index = 0;
+	// Wait for the fence of the old frame to be completed
+	vkWaitForFences(m_device, 1, &m_in_flight_fences[m_frame_index], VK_TRUE, std::numeric_limits<uint64_t>::max());
+	
+	// Fence completed, reset its state
+	vkResetFences(m_device, 1, &m_in_flight_fences[m_frame_index]);
+
+	// The index stores the index of the swapchain image that is available for writing
+	uint32_t current_swapchain_image_index = 0;
 
 	// Retrieve an image from the swapchain for writing (wait indefinitely for the image to become available)
-	vkAcquireNextImageKHR(m_device, m_swapchain, std::numeric_limits<uint64_t>::max(), m_image_available_semaphore, VK_NULL_HANDLE, &frame_index);
+	vkAcquireNextImageKHR(m_device, m_swapchain, std::numeric_limits<uint64_t>::max(), m_in_flight_frame_image_available_semaphores[m_frame_index], VK_NULL_HANDLE, &current_swapchain_image_index);
 	
 	// Wait on these semaphores before execution can start
-	VkSemaphore wait_semaphores[] = { m_image_available_semaphore };
+	VkSemaphore wait_semaphores[] = { m_in_flight_frame_image_available_semaphores[m_frame_index] };
 
 	// Signal these semaphores once execution finishes
-	VkSemaphore signal_semaphores[] = { m_render_finished_semaphore };
+	VkSemaphore signal_semaphores[] = { m_in_flight_render_finished_semaphores[m_frame_index] };
 
 	// Wait in these stages of the pipeline on the semaphores
 	VkPipelineStageFlags wait_stages[] = { VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT };
@@ -154,14 +170,14 @@ void Renderer::Draw()
 	submit_info.pWaitSemaphores = wait_semaphores;
 	submit_info.pWaitDstStageMask = wait_stages;
 	submit_info.commandBufferCount = 1;
-	submit_info.pCommandBuffers = &m_command_buffers[frame_index];
+	submit_info.pCommandBuffers = &m_command_buffers[current_swapchain_image_index];
 	submit_info.signalSemaphoreCount = sizeof(signal_semaphores) / sizeof(signal_semaphores[0]);
 	submit_info.pSignalSemaphores = signal_semaphores;
 
 	// Submit the command queue
-	if (vkQueueSubmit(m_graphics_queue, 1, &submit_info, VK_NULL_HANDLE) != VK_SUCCESS)
+	if (vkQueueSubmit(m_graphics_queue, 1, &submit_info, m_in_flight_fences[m_frame_index]) != VK_SUCCESS)
 	{
-		spdlog::error("Could not submit the queue for frame #{}.", frame_index);
+		spdlog::error("Could not submit the queue for frame #{}.", current_swapchain_image_index);
 		return;
 	}
 
@@ -171,10 +187,13 @@ void Renderer::Draw()
 	present_info.pWaitSemaphores = signal_semaphores;
 	present_info.swapchainCount = 1;
 	present_info.pSwapchains = &m_swapchain;
-	present_info.pImageIndices = &frame_index;
+	present_info.pImageIndices = &current_swapchain_image_index;
 
 	// Request to present an image to the swapchain
 	vkQueuePresentKHR(m_present_queue, &present_info);
+
+	// Advance to the next frame
+	m_frame_index = (m_frame_index + 1) % global_settings::maximum_in_flight_frame_count;
 }
 
 GLFWwindow* const Renderer::GetHandle() const
@@ -1107,16 +1126,38 @@ void Renderer::CreateCommandBuffers()
 	}
 }
 
-void Renderer::CreateSemaphores()
+void Renderer::CreateSynchronizationObjects()
 {
+	m_in_flight_frame_image_available_semaphores.resize(global_settings::maximum_in_flight_frame_count);
+	m_in_flight_render_finished_semaphores.resize(global_settings::maximum_in_flight_frame_count);
+	m_in_flight_fences.resize(global_settings::maximum_in_flight_frame_count);
+
 	VkSemaphoreCreateInfo semaphore_create_info = {};
 	semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
 
-	if (vkCreateSemaphore(m_device, &semaphore_create_info, nullptr, &m_image_available_semaphore) != VK_SUCCESS ||
-		vkCreateSemaphore(m_device, &semaphore_create_info, nullptr, &m_render_finished_semaphore) != VK_SUCCESS)
+	VkFenceCreateInfo fence_create_info = {};
+	fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+	fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;	// Fence is set to signaled on creation
+
+	// Create all required semaphores
+	for (auto index = 0; index < global_settings::maximum_in_flight_frame_count; ++index)
 	{
-		spdlog::error("Could not create one or both semaphores.");
-		return;
+		if (vkCreateSemaphore(m_device, &semaphore_create_info, nullptr, &m_in_flight_frame_image_available_semaphores[index]) != VK_SUCCESS ||
+			vkCreateSemaphore(m_device, &semaphore_create_info, nullptr, &m_in_flight_render_finished_semaphores[index]) != VK_SUCCESS)
+		{
+			spdlog::error("Could not create one or both semaphores.");
+			return;
+		}
+	}
+
+	// Create all required fences
+	for (auto index = 0; index < global_settings::maximum_in_flight_frame_count; ++index)
+	{
+		if (vkCreateFence(m_device, &fence_create_info, nullptr, &m_in_flight_fences[index]) != VK_SUCCESS)
+		{
+			spdlog::error("Could not create a fence.");
+			return;
+		}
 	}
 }
 

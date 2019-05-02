@@ -74,7 +74,7 @@ namespace vkc
 		void CreateFramebuffers();
 		void CreateCommandPool();
 		void CreateCommandBuffers();
-		void CreateSemaphores();
+		void CreateSynchronizationObjects();
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -88,6 +88,7 @@ namespace vkc
 		GLFWwindow* m_window;
 		QueueFamilyIndices m_queue_family_indices;
 		SwapchainSupportDetails m_swap_chain_support;
+		uint64_t m_frame_index;
 
 		VkInstance m_instance;
 		VkDebugUtilsMessengerEXT m_debug_messenger;
@@ -103,12 +104,13 @@ namespace vkc
 		VkPipelineLayout m_pipeline_layout;
 		VkPipeline m_graphics_pipeline;
 		VkCommandPool m_command_pool;
-		VkSemaphore m_image_available_semaphore;
-		VkSemaphore m_render_finished_semaphore;
 
 		std::vector<VkImage> m_swapchain_images;
 		std::vector<VkImageView> m_swapchain_image_views;
 		std::vector<VkFramebuffer> m_swapchain_framebuffers;
 		std::vector<VkCommandBuffer> m_command_buffers;
+		std::vector<VkSemaphore> m_in_flight_frame_image_available_semaphores;
+		std::vector<VkSemaphore> m_in_flight_render_finished_semaphores;
+		std::vector<VkFence> m_in_flight_fences;
 	};
 }
