@@ -6,8 +6,16 @@
 
 //////////////////////////////////////////////////////////////////////////
 
+//////////////////////////////////////////////////////////////////////////
+
+// GLM
+#include "glm/vec3.hpp"
+
+//////////////////////////////////////////////////////////////////////////
+
 // C++ standard
 #include <algorithm>
+#include <array>
 #include <fstream>
 #include <set>
 #include <string>
@@ -45,6 +53,48 @@ void DestroyDebugUtilsMessengerEXT(
 
 using namespace vkc;
 
+// Hard-coded models
+struct Vertex
+{
+	glm::vec3 position;
+	glm::vec3 color;
+
+	static VkVertexInputBindingDescription GetBindingDescription()
+	{
+		VkVertexInputBindingDescription desc = {};
+		desc.binding = 0;
+		desc.stride = sizeof(Vertex);
+		desc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+
+		return desc;
+	}
+
+	static std::array<VkVertexInputAttributeDescription, 2> GetAttributeDescriptions()
+	{
+		std::array<VkVertexInputAttributeDescription, 2> attribs;
+
+		attribs[0].binding = 0;
+		attribs[0].location = 0;
+		attribs[0].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attribs[0].offset = offsetof(Vertex, position);
+
+		attribs[1].binding = 0;
+		attribs[1].location = 1;
+		attribs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+		attribs[1].offset = offsetof(Vertex, color);
+
+		return attribs;
+	}
+};
+
+const std::vector<Vertex> vertices =
+{
+	// Position					// Color
+	{ {  0.0f, -0.5f, 0.0f }, { 1.0f, 1.0f, 1.0f } },
+	{ { -0.5f,  0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
+	{ {  0.5f,  0.5f, 0.0f }, { 0.0f, 0.0f, 1.0f } }
+};
+
 Renderer::Renderer()
 	: m_window(nullptr)
 	, m_frame_index(0)
@@ -57,6 +107,9 @@ Renderer::~Renderer()
 	vkDeviceWaitIdle(m_device);
 
 	CleanUpSwapchain();
+
+	vkDestroyBuffer(m_device, m_vertex_buffer, nullptr);
+	vkFreeMemory(m_device, m_vertex_buffer_memory, nullptr);
 
 	for (auto index = 0; index < global_settings::maximum_in_flight_frame_count; ++index)
 	{
@@ -96,6 +149,7 @@ void Renderer::InitializeVulkan()
 	CreateGraphicsPipeline();
 	CreateFramebuffers();
 	CreateCommandPool();
+	CreateVertexBuffers();
 	CreateCommandBuffers();
 	CreateSynchronizationObjects();
 }
@@ -841,8 +895,8 @@ void Renderer::CreateSwapchainImageViews()
 
 void Renderer::CreateGraphicsPipeline()
 {
-	auto vertex_shader_code = ReadSPRIVFromFile("./resources/shaders/hard_coded_triangle.vert.spv");
-	auto fragment_shader_code = ReadSPRIVFromFile("./resources/shaders/hard_coded_triangle.frag.spv");
+	auto vertex_shader_code = ReadSPRIVFromFile("./resources/shaders/basic.vert.spv");
+	auto fragment_shader_code = ReadSPRIVFromFile("./resources/shaders/basic.frag.spv");
 
 	auto vertex_shader_module = CreateShaderModule(vertex_shader_code);
 	auto fragment_shader_module = CreateShaderModule(fragment_shader_code);
@@ -867,10 +921,15 @@ void Renderer::CreateGraphicsPipeline()
 	};
 
 	// Describe the vertex data format
+	const auto binding_description = Vertex::GetBindingDescription();
+	const auto attribute_descriptions = Vertex::GetAttributeDescriptions();
+	
 	VkPipelineVertexInputStateCreateInfo vertex_input_state = {};
 	vertex_input_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertex_input_state.vertexBindingDescriptionCount = 0;
-	vertex_input_state.vertexAttributeDescriptionCount = 0;
+	vertex_input_state.vertexBindingDescriptionCount = 1;
+	vertex_input_state.pVertexBindingDescriptions = &binding_description;
+	vertex_input_state.vertexAttributeDescriptionCount = static_cast<uint32_t>(attribute_descriptions.size());
+	vertex_input_state.pVertexAttributeDescriptions = attribute_descriptions.data();
 
 	// Describe geometry and if primitive restart should be enabled
 	VkPipelineInputAssemblyStateCreateInfo input_assembly_state = {};
@@ -1133,8 +1192,13 @@ void Renderer::CreateCommandBuffers()
 		// Bind the graphics pipeline
 		vkCmdBindPipeline(m_command_buffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics_pipeline);
 
+		// Bind the triangle vertex buffer
+		VkBuffer vertex_buffers[] = { m_vertex_buffer };
+		VkDeviceSize offsets[] = { 0 };
+		vkCmdBindVertexBuffers(m_command_buffers[index], 0, 1, vertex_buffers, offsets);
+
 		// Draw the triangle using hard-coded shader vertices
-		vkCmdDraw(m_command_buffers[index], 3, 1, 0, 0);
+		vkCmdDraw(m_command_buffers[index], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
 
 		// End the render pass
 		vkCmdEndRenderPass(m_command_buffers[index]);
@@ -1232,6 +1296,64 @@ void Renderer::CleanUpSwapchain()
 	}
 
 	vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
+}
+
+void Renderer::CreateVertexBuffers()
+{
+	VkBufferCreateInfo buffer_info = {};
+	buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	buffer_info.size = sizeof(Vertex) * vertices.size();
+	buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	if (vkCreateBuffer(m_device, &buffer_info, nullptr, &m_vertex_buffer) != VK_SUCCESS)
+	{
+		spdlog::error("Could not create a vertex buffer.");
+		return;
+	}
+
+	VkMemoryRequirements memory_requirements;
+	vkGetBufferMemoryRequirements(m_device, m_vertex_buffer, &memory_requirements);
+
+	VkMemoryAllocateInfo allocation_info = {};
+	allocation_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocation_info.allocationSize = memory_requirements.size;
+	allocation_info.memoryTypeIndex = FindMemoryType(
+		memory_requirements.memoryTypeBits,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+
+	if (vkAllocateMemory(m_device, &allocation_info, nullptr, &m_vertex_buffer_memory) != VK_SUCCESS)
+	{
+		spdlog::error("Could not allocate memory for the vertex buffer.");
+		return;
+	}
+
+	// Associate the memory with the buffer
+	vkBindBufferMemory(m_device, m_vertex_buffer, m_vertex_buffer_memory, 0);
+
+	// The buffer is CPU visible, so we can just copy the data into the buffer
+	void* data = nullptr;
+	vkMapMemory(m_device, m_vertex_buffer_memory, 0, buffer_info.size, 0, &data);
+	memcpy(data, vertices.data(), buffer_info.size);
+	vkUnmapMemory(m_device, m_vertex_buffer_memory);
+}
+
+uint32_t Renderer::FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties)
+{
+	VkPhysicalDeviceMemoryProperties memory_properties;
+	vkGetPhysicalDeviceMemoryProperties(m_physical_device, &memory_properties);
+
+	for (uint32_t index = 0; index < memory_properties.memoryTypeCount; ++index)
+	{
+		// Iterate through the types and check when the "type_filter" bit field is set to 1
+		// Also check whether all required properties are supported
+		if ((type_filter & (1 << index)) && (memory_properties.memoryTypes[index].propertyFlags & properties) == properties)
+			return index;
+	}
+
+	spdlog::error("Could not find a suitable memory type");
+	return 0;
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL Renderer::DebugMessageCallback(

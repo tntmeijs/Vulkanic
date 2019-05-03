@@ -78,6 +78,8 @@ namespace vkc
 		void CreateSynchronizationObjects();
 		void RecreateSwapchain();
 		void CleanUpSwapchain();
+		void CreateVertexBuffers();
+		uint32_t FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties);
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -109,6 +111,8 @@ namespace vkc
 		VkPipelineLayout m_pipeline_layout;
 		VkPipeline m_graphics_pipeline;
 		VkCommandPool m_command_pool;
+		VkBuffer m_vertex_buffer;
+		VkDeviceMemory m_vertex_buffer_memory;
 
 		std::vector<VkImage> m_swapchain_images;
 		std::vector<VkImageView> m_swapchain_image_views;
