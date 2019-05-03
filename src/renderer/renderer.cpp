@@ -841,8 +841,8 @@ void Renderer::CreateSwapchainImageViews()
 
 void Renderer::CreateGraphicsPipeline()
 {
-	auto vertex_shader_code = ReadSPRIVFromFile("./resources/shaders/hard_coded_triangle_vert.spv");
-	auto fragment_shader_code = ReadSPRIVFromFile("./resources/shaders/hard_coded_triangle_frag.spv");
+	auto vertex_shader_code = ReadSPRIVFromFile("./resources/shaders/hard_coded_triangle.vert.spv");
+	auto fragment_shader_code = ReadSPRIVFromFile("./resources/shaders/hard_coded_triangle.frag.spv");
 
 	auto vertex_shader_module = CreateShaderModule(vertex_shader_code);
 	auto fragment_shader_module = CreateShaderModule(fragment_shader_code);
