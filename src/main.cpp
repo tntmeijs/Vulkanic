@@ -25,6 +25,15 @@ int main(int argc, char* argv[])
 			glfwSetWindowShouldClose(window, GLFW_TRUE);
 	});
 
+	glfwSetFramebufferSizeCallback(window_handle, [](GLFWwindow* const window, int width, int height)
+	{
+		// Prevent "unreferenced formal parameter" warning from triggering
+		width, height;
+
+		auto* const renderer = reinterpret_cast<vkc::Renderer*>(glfwGetWindowUserPointer(window));
+		renderer->TriggerFramebufferResized();
+	});
+
 	while (!glfwWindowShouldClose(window_handle))
 	{
 		glfwPollEvents();

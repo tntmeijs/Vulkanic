@@ -48,12 +48,15 @@ using namespace vkc;
 Renderer::Renderer()
 	: m_window(nullptr)
 	, m_frame_index(0)
+	, m_framebuffer_resized(false)
 {}
 
 Renderer::~Renderer()
 {
 	// Wait until the GPU finishes the current operation before cleaning-up resources
 	vkDeviceWaitIdle(m_device);
+
+	CleanUpSwapchain();
 
 	for (auto index = 0; index < global_settings::maximum_in_flight_frame_count; ++index)
 	{
@@ -67,18 +70,6 @@ Renderer::~Renderer()
 	}
 	
 	vkDestroyCommandPool(m_device, m_command_pool, nullptr);
-
-	for (const auto& framebuffer : m_swapchain_framebuffers)
-		vkDestroyFramebuffer(m_device, framebuffer, nullptr);
-
-	vkDestroyPipeline(m_device, m_graphics_pipeline, nullptr);
-	vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
-	vkDestroyRenderPass(m_device, m_render_pass, nullptr);
-
-	for (const auto& image_view : m_swapchain_image_views)
-		vkDestroyImageView(m_device, image_view, nullptr);
-
-	vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
 	vkDestroyDevice(m_device, nullptr);
 
 #ifdef _DEBUG
@@ -120,13 +111,15 @@ void Renderer::SetupWindow()
 	spdlog::info("GLFW has been initialized.");
 
 	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
 	m_window = glfwCreateWindow(
 		global_settings::default_window_width,
 		global_settings::default_window_height,
 		global_settings::window_title,
 		nullptr, nullptr);
+
+	// Save the "this" pointer for use in the callbacks
+	glfwSetWindowUserPointer(m_window, this);
 
 	if (!m_window)
 	{
@@ -145,16 +138,24 @@ void Renderer::Draw()
 {
 	// Wait for the fence of the old frame to be completed
 	vkWaitForFences(m_device, 1, &m_in_flight_fences[m_frame_index], VK_TRUE, std::numeric_limits<uint64_t>::max());
-	
-	// Fence completed, reset its state
-	vkResetFences(m_device, 1, &m_in_flight_fences[m_frame_index]);
 
 	// The index stores the index of the swapchain image that is available for writing
 	uint32_t current_swapchain_image_index = 0;
 
 	// Retrieve an image from the swapchain for writing (wait indefinitely for the image to become available)
-	vkAcquireNextImageKHR(m_device, m_swapchain, std::numeric_limits<uint64_t>::max(), m_in_flight_frame_image_available_semaphores[m_frame_index], VK_NULL_HANDLE, &current_swapchain_image_index);
-	
+	auto result = vkAcquireNextImageKHR(m_device, m_swapchain, std::numeric_limits<uint64_t>::max(), m_in_flight_frame_image_available_semaphores[m_frame_index], VK_NULL_HANDLE, &current_swapchain_image_index);
+
+	// Recreate the swapchain if the current swapchain has become incompatible with the surface
+	if (result == VK_ERROR_OUT_OF_DATE_KHR)
+	{
+		RecreateSwapchain();
+		return;
+	}
+	else if (result != VK_SUCCESS && result != VK_SUBOPTIMAL_KHR)
+	{
+		spdlog::error("Could not acquire a new swapchain image.");
+	}
+
 	// Wait on these semaphores before execution can start
 	VkSemaphore wait_semaphores[] = { m_in_flight_frame_image_available_semaphores[m_frame_index] };
 
@@ -174,6 +175,9 @@ void Renderer::Draw()
 	submit_info.signalSemaphoreCount = sizeof(signal_semaphores) / sizeof(signal_semaphores[0]);
 	submit_info.pSignalSemaphores = signal_semaphores;
 
+	// Fence completed, reset its state
+	vkResetFences(m_device, 1, &m_in_flight_fences[m_frame_index]);
+
 	// Submit the command queue
 	if (vkQueueSubmit(m_graphics_queue, 1, &submit_info, m_in_flight_fences[m_frame_index]) != VK_SUCCESS)
 	{
@@ -190,10 +194,28 @@ void Renderer::Draw()
 	present_info.pImageIndices = &current_swapchain_image_index;
 
 	// Request to present an image to the swapchain
-	vkQueuePresentKHR(m_present_queue, &present_info);
+	result = vkQueuePresentKHR(m_present_queue, &present_info);
+
+	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebuffer_resized)
+	{
+		spdlog::warn("Swapchain is not up-to-date anymore, recreating swapchain...");
+
+		m_framebuffer_resized = false;
+		RecreateSwapchain();
+	}
+	else if (result != VK_SUCCESS)
+	{
+		spdlog::error("Could not present the swapchain image.");
+		return;
+	}
 
 	// Advance to the next frame
 	m_frame_index = (m_frame_index + 1) % global_settings::maximum_in_flight_frame_count;
+}
+
+void Renderer::TriggerFramebufferResized()
+{
+	m_framebuffer_resized = true;
 }
 
 GLFWwindow* const Renderer::GetHandle() const
@@ -704,7 +726,9 @@ VkExtent2D Renderer::ChooseSwapchainExtent()
 		return capabilities.currentExtent;
 	
 	// Use the resolution that matches the window within the given extents the best
-	VkExtent2D extent = { global_settings::default_window_width, global_settings::default_window_height };
+	int width, height;
+	glfwGetFramebufferSize(m_window, &width, &height);
+	VkExtent2D extent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
 
 	extent.width = std::max(capabilities.minImageExtent.width, std::min(capabilities.maxImageExtent.width, extent.width));
 	extent.height = std::max(capabilities.minImageExtent.height, std::min(capabilities.maxImageExtent.height, extent.height));
@@ -1159,6 +1183,55 @@ void Renderer::CreateSynchronizationObjects()
 			return;
 		}
 	}
+}
+
+void Renderer::RecreateSwapchain()
+{
+	int width = 0;
+	int height = 0;
+
+	while (width == 0 || height == 0)
+	{
+		glfwGetFramebufferSize(m_window, &width, &height);
+		glfwWaitEvents();
+	}
+
+	// Wait until the GPU finishes and clean-up the, now outdated, swapchain
+	vkDeviceWaitIdle(m_device);
+	CleanUpSwapchain();
+
+	// Create a new swapchain
+	QuerySwapchainSupport();
+	CreateSwapchain();
+	CreateSwapchainImageViews();
+	CreateRenderPass();
+	CreateGraphicsPipeline();
+	CreateFramebuffers();
+	CreateCommandBuffers();
+
+	spdlog::info("Recreated the swapchain successfully.");
+}
+
+void Renderer::CleanUpSwapchain()
+{
+	for (const auto& framebuffer : m_swapchain_framebuffers)
+	{
+		vkDestroyFramebuffer(m_device, framebuffer, nullptr);
+	}
+
+	// No need to recreate the pool, freeing the command buffers is enough
+	vkFreeCommandBuffers(m_device, m_command_pool, static_cast<uint32_t>(m_command_buffers.size()), m_command_buffers.data());
+
+	vkDestroyPipeline(m_device, m_graphics_pipeline, nullptr);
+	vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
+	vkDestroyRenderPass(m_device, m_render_pass, nullptr);
+
+	for (const auto& image_view : m_swapchain_image_views)
+	{
+		vkDestroyImageView(m_device, image_view, nullptr);
+	}
+
+	vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL Renderer::DebugMessageCallback(

@@ -48,6 +48,7 @@ namespace vkc
 		void InitializeVulkan();
 		void SetupWindow();
 		void Draw();
+		void TriggerFramebufferResized();
 
 		GLFWwindow* const GetHandle() const;
 
@@ -75,6 +76,8 @@ namespace vkc
 		void CreateCommandPool();
 		void CreateCommandBuffers();
 		void CreateSynchronizationObjects();
+		void RecreateSwapchain();
+		void CleanUpSwapchain();
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -89,6 +92,8 @@ namespace vkc
 		QueueFamilyIndices m_queue_family_indices;
 		SwapchainSupportDetails m_swap_chain_support;
 		uint64_t m_frame_index;
+
+		bool m_framebuffer_resized;
 
 		VkInstance m_instance;
 		VkDebugUtilsMessengerEXT m_debug_messenger;
