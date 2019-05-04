@@ -79,8 +79,13 @@ namespace vkc
 		void CreateSynchronizationObjects();
 		void RecreateSwapchain();
 		void CleanUpSwapchain();
-		void CreateVertexBuffers();
-		uint32_t FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties);
+		void CreateTransferCommandBuffer();
+		void CreateVertexBuffer();
+		
+		static uint32_t FindMemoryType(
+			uint32_t type_filter,
+			VkMemoryPropertyFlags properties,
+			const VkPhysicalDevice& physical_device);
 
 		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
 			VkDebugUtilsMessageSeverityFlagBitsEXT severity,
@@ -89,6 +94,23 @@ namespace vkc
 			void* user_data);
 
 		static std::vector<char> ReadSPRIVFromFile(const char* file);
+
+		static void CreateBuffer(
+			VkDeviceSize size,
+			VkBufferUsageFlags usage,
+			VkMemoryPropertyFlags properties,
+			VkBuffer& buffer,
+			VkDeviceMemory& buffer_memory,
+			const QueueFamilyIndices& queue_family_indices,
+			const VkDevice& device,
+			const VkPhysicalDevice physical_device);
+
+		static void CopyStagingBufferToDeviceLocalBuffer(
+			const VkBuffer& source,
+			const VkBuffer& destination,
+			VkDeviceSize size,
+			const VkCommandBuffer& transfer_command_buffer,
+			const VkQueue& transfer_queue);
 
 	private:
 		GLFWwindow* m_window;

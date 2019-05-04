@@ -122,6 +122,7 @@ Renderer::~Renderer()
 		vkDestroyFence(m_device, m_in_flight_fences[index], nullptr);
 	}
 	
+	vkFreeCommandBuffers(m_device, m_transfer_command_pool, 1, &m_transfer_command_buffer);
 	vkDestroyCommandPool(m_device, m_transfer_command_pool, nullptr);
 	vkDestroyCommandPool(m_device, m_graphics_command_pool, nullptr);
 	vkDestroyDevice(m_device, nullptr);
@@ -150,7 +151,8 @@ void Renderer::InitializeVulkan()
 	CreateGraphicsPipeline();
 	CreateFramebuffers();
 	CreateCommandPools();
-	CreateVertexBuffers();
+	CreateTransferCommandBuffer();
+	CreateVertexBuffer();
 	CreateCommandBuffers();
 	CreateSynchronizationObjects();
 }
@@ -632,11 +634,6 @@ QueueFamilyIndices Renderer::FindQueueFamiliesOfSelectedPhysicalDevice()
 			break;
 
 		++index;
-	}
-
-	if (!indices.transfer_family_index.has_value())
-	{
-		spdlog::warn("Could not find a dedicated transfer queue.");
 	}
 	
 	return indices;
@@ -1228,15 +1225,8 @@ void Renderer::CreateCommandBuffers()
 	graphics_command_buffer_allocate_info.commandBufferCount = static_cast<uint32_t>(m_command_buffers.size());
 	graphics_command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
-	VkCommandBufferAllocateInfo transfer_command_buffer_allocate_info = {};
-	transfer_command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	transfer_command_buffer_allocate_info.commandPool = m_transfer_command_pool;
-	transfer_command_buffer_allocate_info.commandBufferCount = 1;
-	transfer_command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-
 	// Allocate the command buffers
-	if (vkAllocateCommandBuffers(m_device, &graphics_command_buffer_allocate_info, m_command_buffers.data()) != VK_SUCCESS ||
-		vkAllocateCommandBuffers(m_device, &transfer_command_buffer_allocate_info, &m_transfer_command_buffer) != VK_SUCCESS)
+	if (vkAllocateCommandBuffers(m_device, &graphics_command_buffer_allocate_info, m_command_buffers.data()) != VK_SUCCESS)
 	{
 		spdlog::error("Could not allocate command buffers.");
 		return;
@@ -1386,71 +1376,76 @@ void Renderer::CleanUpSwapchain()
 	vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
 }
 
-void Renderer::CreateVertexBuffers()
+void Renderer::CreateTransferCommandBuffer()
 {
-	VkBufferCreateInfo buffer_info = {};
-	buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	buffer_info.size = sizeof(Vertex) * vertices.size();
-	buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+	VkCommandBufferAllocateInfo transfer_command_buffer_allocate_info = {};
+	transfer_command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	transfer_command_buffer_allocate_info.commandPool = m_transfer_command_pool;
+	transfer_command_buffer_allocate_info.commandBufferCount = 1;
+	transfer_command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
-	if (m_queue_family_indices.transfer_family_index.has_value())
-	{
-		// Use a dedicated transfer queue
-		uint32_t queue_indices[] =
-		{
-			m_queue_family_indices.graphics_family_index->first,
-			m_queue_family_indices.transfer_family_index->first
-		};
-
-		buffer_info.sharingMode = VK_SHARING_MODE_CONCURRENT;
-		buffer_info.queueFamilyIndexCount = sizeof(queue_indices) / sizeof(queue_indices[0]);
-		buffer_info.pQueueFamilyIndices = queue_indices;
-	}
+	if (vkAllocateCommandBuffers(m_device, &transfer_command_buffer_allocate_info, &m_transfer_command_buffer) != VK_SUCCESS)
+		spdlog::error("Could not allocate a transfer command buffer.");
 	else
-	{
-		// Use the graphics queue as a transfer queue as well
-		buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		buffer_info.queueFamilyIndexCount = 1;
-		buffer_info.pQueueFamilyIndices = &m_queue_family_indices.graphics_family_index->first;
-	}
-
-	if (vkCreateBuffer(m_device, &buffer_info, nullptr, &m_vertex_buffer) != VK_SUCCESS)
-	{
-		spdlog::error("Could not create a vertex buffer.");
-		return;
-	}
-
-	VkMemoryRequirements memory_requirements;
-	vkGetBufferMemoryRequirements(m_device, m_vertex_buffer, &memory_requirements);
-
-	VkMemoryAllocateInfo allocation_info = {};
-	allocation_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocation_info.allocationSize = memory_requirements.size;
-	allocation_info.memoryTypeIndex = FindMemoryType(
-		memory_requirements.memoryTypeBits,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
-		VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-	if (vkAllocateMemory(m_device, &allocation_info, nullptr, &m_vertex_buffer_memory) != VK_SUCCESS)
-	{
-		spdlog::error("Could not allocate memory for the vertex buffer.");
-		return;
-	}
-
-	// Associate the memory with the buffer
-	vkBindBufferMemory(m_device, m_vertex_buffer, m_vertex_buffer_memory, 0);
-
-	// The buffer is CPU visible, so we can just copy the data into the buffer
-	void* data = nullptr;
-	vkMapMemory(m_device, m_vertex_buffer_memory, 0, buffer_info.size, 0, &data);
-	memcpy(data, vertices.data(), buffer_info.size);
-	vkUnmapMemory(m_device, m_vertex_buffer_memory);
+		spdlog::info("Successfully allocated a transfer command buffer.");
 }
 
-uint32_t Renderer::FindMemoryType(uint32_t type_filter, VkMemoryPropertyFlags properties)
+void Renderer::CreateVertexBuffer()
+{
+	VkDeviceSize buffer_size = sizeof(Vertex) * vertices.size();
+
+	VkBuffer staging_buffer;
+	VkDeviceMemory staging_buffer_memory;
+
+	// Create a staging buffer
+	CreateBuffer(
+		buffer_size,
+		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		staging_buffer,
+		staging_buffer_memory,
+		m_queue_family_indices,
+		m_device,
+		m_physical_device);
+
+	void* data = nullptr;
+	
+	// Copy the data to a staging buffer
+	vkMapMemory(m_device, staging_buffer_memory, 0, buffer_size, 0, &data);
+	memcpy(data, vertices.data(), static_cast<size_t>(buffer_size));
+	vkUnmapMemory(m_device, staging_buffer_memory);
+
+	// Create a device local buffer to hold the vertex data in GPU memory
+	CreateBuffer(
+		buffer_size,
+		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		m_vertex_buffer,
+		m_vertex_buffer_memory,
+		m_queue_family_indices,
+		m_device,
+		m_physical_device);
+
+	// Copy the staging buffer to the GPU visible buffer
+	CopyStagingBufferToDeviceLocalBuffer(
+		staging_buffer,
+		m_vertex_buffer,
+		buffer_size,
+		m_transfer_command_buffer,
+		m_transfer_queue);
+
+	// Clean up the staging buffer since it is no longer needed
+	vkDestroyBuffer(m_device, staging_buffer, nullptr);
+	vkFreeMemory(m_device, staging_buffer_memory, nullptr);
+}
+
+uint32_t Renderer::FindMemoryType(
+	uint32_t type_filter,
+	VkMemoryPropertyFlags properties,
+	const VkPhysicalDevice& physical_device)
 {
 	VkPhysicalDeviceMemoryProperties memory_properties;
-	vkGetPhysicalDeviceMemoryProperties(m_physical_device, &memory_properties);
+	vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
 
 	for (uint32_t index = 0; index < memory_properties.memoryTypeCount; ++index)
 	{
@@ -1504,4 +1499,101 @@ std::vector<char> Renderer::ReadSPRIVFromFile(const char* file)
 	spdlog::info("Successfully read the shader \"{}\".", file);
 
 	return spirv;
+}
+
+void Renderer::CreateBuffer(
+	VkDeviceSize size,
+	VkBufferUsageFlags usage,
+	VkMemoryPropertyFlags properties,
+	VkBuffer& buffer,
+	VkDeviceMemory& buffer_memory,
+	const QueueFamilyIndices& queue_family_indices,
+	const VkDevice& device,
+	const VkPhysicalDevice physical_device)
+{
+	VkBufferCreateInfo buffer_info = {};
+	buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	buffer_info.size = size;
+	buffer_info.usage = usage;
+
+	if (queue_family_indices.transfer_family_index.has_value())
+	{
+		// Use a dedicated transfer queue
+		uint32_t queue_indices[] =
+		{
+			queue_family_indices.graphics_family_index->first,
+			queue_family_indices.transfer_family_index->first
+		};
+
+		buffer_info.sharingMode = VK_SHARING_MODE_CONCURRENT;
+		buffer_info.queueFamilyIndexCount = sizeof(queue_indices) / sizeof(queue_indices[0]);
+		buffer_info.pQueueFamilyIndices = queue_indices;
+	}
+	else
+	{
+		// Use the graphics queue as a transfer queue as well
+		buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		buffer_info.queueFamilyIndexCount = 1;
+		buffer_info.pQueueFamilyIndices = &queue_family_indices.graphics_family_index->first;
+	}
+
+	if (vkCreateBuffer(device, &buffer_info, nullptr, &buffer) != VK_SUCCESS)
+	{
+		spdlog::error("Could not create a vertex buffer.");
+		return;
+	}
+
+	VkMemoryRequirements memory_requirements;
+	vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
+
+	VkMemoryAllocateInfo allocation_info = {};
+	allocation_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	allocation_info.allocationSize = memory_requirements.size;
+	allocation_info.memoryTypeIndex = FindMemoryType(
+		memory_requirements.memoryTypeBits,
+		properties,
+		physical_device);
+
+	if (vkAllocateMemory(device, &allocation_info, nullptr, &buffer_memory) != VK_SUCCESS)
+	{
+		spdlog::error("Could not allocate memory for the vertex buffer.");
+		return;
+	}
+
+	// Associate the memory with the buffer
+	vkBindBufferMemory(device, buffer, buffer_memory, 0);
+}
+
+void Renderer::CopyStagingBufferToDeviceLocalBuffer(
+	const VkBuffer& source,
+	const VkBuffer& destination,
+	VkDeviceSize size,
+	const VkCommandBuffer& transfer_command_buffer,
+	const VkQueue& transfer_queue)
+{
+	VkCommandBufferBeginInfo begin_info = {};
+	begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+	begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+
+	// Begin recording to the command buffer
+	vkBeginCommandBuffer(transfer_command_buffer, &begin_info);
+
+	VkBufferCopy copy_region = {};
+	copy_region.size = size;
+
+	// Issue a command that copies the staging buffer to the destination buffer
+	vkCmdCopyBuffer(transfer_command_buffer, source, destination, 1, &copy_region);
+
+	// End recording to the command buffer
+	vkEndCommandBuffer(transfer_command_buffer);
+
+	// Upload the staging buffer to the GPU by executing the transfer command buffer
+	VkSubmitInfo submit_info = {};
+	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submit_info.commandBufferCount = 1;
+	submit_info.pCommandBuffers = &transfer_command_buffer;
+
+	// Execute the commands
+	vkQueueSubmit(transfer_queue, 1, &submit_info, VK_NULL_HANDLE);
+	vkQueueWaitIdle(transfer_queue);
 }
