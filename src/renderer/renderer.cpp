@@ -122,7 +122,8 @@ Renderer::~Renderer()
 		vkDestroyFence(m_device, m_in_flight_fences[index], nullptr);
 	}
 	
-	vkDestroyCommandPool(m_device, m_command_pool, nullptr);
+	vkDestroyCommandPool(m_device, m_transfer_command_pool, nullptr);
+	vkDestroyCommandPool(m_device, m_graphics_command_pool, nullptr);
 	vkDestroyDevice(m_device, nullptr);
 
 #ifdef _DEBUG
@@ -148,7 +149,7 @@ void Renderer::InitializeVulkan()
 	CreateRenderPass();
 	CreateGraphicsPipeline();
 	CreateFramebuffers();
-	CreateCommandPool();
+	CreateCommandPools();
 	CreateVertexBuffers();
 	CreateCommandBuffers();
 	CreateSynchronizationObjects();
@@ -595,17 +596,36 @@ QueueFamilyIndices Renderer::FindQueueFamiliesOfSelectedPhysicalDevice()
 	uint32_t index = 0;
 	for (const auto& queue_family : queue_families)
 	{
+		// Look for a dedicated transfer queue family
+		if ((queue_family.queueFlags & VK_QUEUE_TRANSFER_BIT)		&&
+			(queue_family.queueFlags & VK_QUEUE_GRAPHICS_BIT) == 0	&&
+			(queue_family.queueFlags & VK_QUEUE_COMPUTE_BIT) == 0)
+		{
+			indices.transfer_family_index = { 0, 0 };
+			indices.transfer_family_index->first = index;
+			indices.transfer_family_index->second = queue_family.queueCount;
+			continue;
+		}
+
 		// Does this queue family support presenting?
 		VkBool32 present_supported = true;
 		vkGetPhysicalDeviceSurfaceSupportKHR(m_physical_device, index, m_surface, &present_supported);
 
 		// Look for a queue family that supports present operations
 		if (present_supported)
-			indices.present_family_index = index;
+		{
+			indices.present_family_index = { 0, 0 };
+			indices.present_family_index->first = index;
+			indices.present_family_index->second = queue_family.queueCount;
+		}
 
 		// Look for a queue family that supports graphics operations
 		if (queue_family.queueFlags & VK_QUEUE_GRAPHICS_BIT)
-			indices.graphics_family_index = index;
+		{
+			indices.graphics_family_index = { 0, 0 };
+			indices.graphics_family_index->first = index;
+			indices.graphics_family_index->second = queue_family.queueCount;
+		}
 
 		// Stop searching once all queue family indices have been found
 		if (indices.AllIndicesFound())
@@ -614,18 +634,21 @@ QueueFamilyIndices Renderer::FindQueueFamiliesOfSelectedPhysicalDevice()
 		++index;
 	}
 
+	if (!indices.transfer_family_index.has_value())
+	{
+		spdlog::warn("Could not find a dedicated transfer queue.");
+	}
+	
 	return indices;
 }
 
 void Renderer::CreateLogicalDevice()
 {
-	float queue_priority = 1.0f;
-
 	// Eliminate duplicate family indices by using the set (guarantees unique values)
 	std::set<uint32_t> unique_family_indices =
 	{
-		m_queue_family_indices.graphics_family_index.value(),
-		m_queue_family_indices.present_family_index.value()
+		m_queue_family_indices.graphics_family_index->first,
+		m_queue_family_indices.present_family_index->first
 	};
 	
 	std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
@@ -635,8 +658,26 @@ void Renderer::CreateLogicalDevice()
 		VkDeviceQueueCreateInfo queue_create_info = {};
 		queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
 		queue_create_info.queueFamilyIndex = unique_index;
-		queue_create_info.queueCount = 1;
-		queue_create_info.pQueuePriorities = &queue_priority;
+
+		// If there is no dedicated transfer queue and the graphics family has
+		// more than one queue, use two queues from the graphics family instead
+		if (m_queue_family_indices.graphics_family_index.value().second >= 2 &&
+			unique_index == m_queue_family_indices.graphics_family_index->first)
+		{
+			float queue_priorities[2] = { 1.0f, 1.0f };
+
+			// A graphics and a transfer queue
+			queue_create_info.queueCount = 2;
+			queue_create_info.pQueuePriorities = queue_priorities;
+		}
+		else
+		{
+			float queue_priority = 1.0f;
+
+			// Just a single queue
+			queue_create_info.queueCount = 1;
+			queue_create_info.pQueuePriorities = &queue_priority;
+		}
 
 		queue_create_infos.push_back(queue_create_info);
 	}
@@ -657,9 +698,29 @@ void Renderer::CreateLogicalDevice()
 
 	spdlog::info("Successfully created a logical device.");
 
-	// Queues are created as soon as the logical device is created, which means handles to the queues can be retrieved
-	vkGetDeviceQueue(m_device, m_queue_family_indices.graphics_family_index.value(), 0, &m_graphics_queue);
-	vkGetDeviceQueue(m_device, m_queue_family_indices.present_family_index.value(), 0, &m_present_queue);
+	vkGetDeviceQueue(m_device, m_queue_family_indices.graphics_family_index->first, 0, &m_graphics_queue);
+	vkGetDeviceQueue(m_device, m_queue_family_indices.present_family_index->first, 0, &m_present_queue);
+	
+	if (!m_queue_family_indices.transfer_family_index.has_value() &&
+		m_queue_family_indices.graphics_family_index.value().second >= 2)
+	{
+		// If a there is no dedicated transfer queue, use a second graphics queue instead
+		vkGetDeviceQueue(m_device, m_queue_family_indices.graphics_family_index->first, 1, &m_transfer_queue);
+
+		spdlog::warn("Could not find a dedicated transfer queue, using a second graphics queue instead...");
+	}
+	else if (m_queue_family_indices.graphics_family_index.value().second == 1)
+	{
+		// Only one queue in the graphics family is available, use the graphics queue as a transfer queue
+		vkGetDeviceQueue(m_device, m_queue_family_indices.graphics_family_index->first, 0, &m_transfer_queue);
+	
+		spdlog::warn("Could not find a dedicated transfer queue or a second graphics queue, using the main graphics queue instead...");
+	}
+	else
+	{
+		// A dedicated transfer queue is available
+		vkGetDeviceQueue(m_device, m_queue_family_indices.transfer_family_index->first, 0, &m_transfer_queue);
+	}
 }
 
 bool Renderer::CheckPhysicalDeviceExtensionSupport()
@@ -809,8 +870,8 @@ void Renderer::CreateSwapchain()
 	// Queue families grouped in an array for easy access when filling out the swapchain create structure
 	uint32_t queue_families[] =
 	{
-		m_queue_family_indices.graphics_family_index.value(),
-		m_queue_family_indices.present_family_index.value()
+		m_queue_family_indices.graphics_family_index->first,
+		m_queue_family_indices.present_family_index->first
 	};
 
 	VkSwapchainCreateInfoKHR create_info = {};
@@ -1121,34 +1182,61 @@ void Renderer::CreateFramebuffers()
 	spdlog::info("Successfully created a framebuffer for each swapchain image view.");
 }
 
-void Renderer::CreateCommandPool()
+void Renderer::CreateCommandPools()
 {
-	VkCommandPoolCreateInfo pool_info = {};
-	pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	pool_info.queueFamilyIndex = m_queue_family_indices.graphics_family_index.value();
+	VkCommandPoolCreateInfo graphics_pool_info = {};
+	graphics_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+	graphics_pool_info.queueFamilyIndex = m_queue_family_indices.graphics_family_index->first;
 
-	if (vkCreateCommandPool(m_device, &pool_info, nullptr, &m_command_pool) != VK_SUCCESS)
+	VkCommandPoolCreateInfo transfer_pool_info = {};
+	transfer_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+
+	// Choose the correct queue family index if there is a dedicated transfer queue on this system
+	if (m_queue_family_indices.transfer_family_index.has_value())
+		transfer_pool_info.queueFamilyIndex = m_queue_family_indices.transfer_family_index->first;
+	else
+		transfer_pool_info.queueFamilyIndex = m_queue_family_indices.graphics_family_index->first;
+
+	if (vkCreateCommandPool(m_device, &graphics_pool_info, nullptr, &m_graphics_command_pool) != VK_SUCCESS)
 	{
-		spdlog::error("Could not create a command pool.");
+		spdlog::error("Could not create a graphics command pool.");
 		return;
 	}
+	else
+	{
+		spdlog::info("Successfully created a graphics command pool.");
+	}
 
-	spdlog::info("Successfully created a command pool.");
+	if (vkCreateCommandPool(m_device, &transfer_pool_info, nullptr, &m_transfer_command_pool) != VK_SUCCESS)
+	{
+		spdlog::error("Could not create a transfer command pool.");
+	}
+	else
+	{
+		spdlog::info("Successfully created a transfer command pool.");
+	}
 }
 
 void Renderer::CreateCommandBuffers()
 {
 	// We need one command buffer per swapchain framebuffer
 	m_command_buffers.resize(m_swapchain_framebuffers.size());
+	
+	VkCommandBufferAllocateInfo graphics_command_buffer_allocate_info = {};
+	graphics_command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	graphics_command_buffer_allocate_info.commandPool = m_graphics_command_pool;
+	graphics_command_buffer_allocate_info.commandBufferCount = static_cast<uint32_t>(m_command_buffers.size());
+	graphics_command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
-	VkCommandBufferAllocateInfo allocate_info = {};
-	allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocate_info.commandPool = m_command_pool;
-	allocate_info.commandBufferCount = static_cast<uint32_t>(m_command_buffers.size());
-	allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	VkCommandBufferAllocateInfo transfer_command_buffer_allocate_info = {};
+	transfer_command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	transfer_command_buffer_allocate_info.commandPool = m_transfer_command_pool;
+	transfer_command_buffer_allocate_info.commandBufferCount = 1;
+	transfer_command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
 	// Allocate the command buffers
-	if (vkAllocateCommandBuffers(m_device, &allocate_info, m_command_buffers.data()) != VK_SUCCESS)
+	if (vkAllocateCommandBuffers(m_device, &graphics_command_buffer_allocate_info, m_command_buffers.data()) != VK_SUCCESS ||
+		vkAllocateCommandBuffers(m_device, &transfer_command_buffer_allocate_info, &m_transfer_command_buffer) != VK_SUCCESS)
 	{
 		spdlog::error("Could not allocate command buffers.");
 		return;
@@ -1284,7 +1372,7 @@ void Renderer::CleanUpSwapchain()
 	}
 
 	// No need to recreate the pool, freeing the command buffers is enough
-	vkFreeCommandBuffers(m_device, m_command_pool, static_cast<uint32_t>(m_command_buffers.size()), m_command_buffers.data());
+	vkFreeCommandBuffers(m_device, m_graphics_command_pool, static_cast<uint32_t>(m_command_buffers.size()), m_command_buffers.data());
 
 	vkDestroyPipeline(m_device, m_graphics_pipeline, nullptr);
 	vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
@@ -1304,7 +1392,27 @@ void Renderer::CreateVertexBuffers()
 	buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	buffer_info.size = sizeof(Vertex) * vertices.size();
 	buffer_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-	buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	if (m_queue_family_indices.transfer_family_index.has_value())
+	{
+		// Use a dedicated transfer queue
+		uint32_t queue_indices[] =
+		{
+			m_queue_family_indices.graphics_family_index->first,
+			m_queue_family_indices.transfer_family_index->first
+		};
+
+		buffer_info.sharingMode = VK_SHARING_MODE_CONCURRENT;
+		buffer_info.queueFamilyIndexCount = sizeof(queue_indices) / sizeof(queue_indices[0]);
+		buffer_info.pQueueFamilyIndices = queue_indices;
+	}
+	else
+	{
+		// Use the graphics queue as a transfer queue as well
+		buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+		buffer_info.queueFamilyIndexCount = 1;
+		buffer_info.pQueueFamilyIndices = &m_queue_family_indices.graphics_family_index->first;
+	}
 
 	if (vkCreateBuffer(m_device, &buffer_info, nullptr, &m_vertex_buffer) != VK_SUCCESS)
 	{

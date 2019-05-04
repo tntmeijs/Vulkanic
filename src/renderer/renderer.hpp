@@ -23,8 +23,9 @@ namespace vkc
 {
 	struct QueueFamilyIndices
 	{
-		std::optional<uint32_t> graphics_family_index;
-		std::optional<uint32_t> present_family_index;
+		std::optional<std::pair<uint32_t, uint32_t>> graphics_family_index;
+		std::optional<std::pair<uint32_t, uint32_t>> present_family_index;
+		std::optional<std::pair<uint32_t, uint32_t>> transfer_family_index;
 
 		bool AllIndicesFound()
 		{
@@ -73,7 +74,7 @@ namespace vkc
 		VkShaderModule CreateShaderModule(const std::vector<char>& spirv);
 		void CreateRenderPass();
 		void CreateFramebuffers();
-		void CreateCommandPool();
+		void CreateCommandPools();
 		void CreateCommandBuffers();
 		void CreateSynchronizationObjects();
 		void RecreateSwapchain();
@@ -104,15 +105,18 @@ namespace vkc
 		VkDevice m_device;
 		VkQueue m_graphics_queue;
 		VkQueue m_present_queue;
+		VkQueue m_transfer_queue;
 		VkSwapchainKHR m_swapchain;
 		VkFormat m_swapchain_format;
 		VkExtent2D m_swapchain_extent;
 		VkRenderPass m_render_pass;
 		VkPipelineLayout m_pipeline_layout;
 		VkPipeline m_graphics_pipeline;
-		VkCommandPool m_command_pool;
+		VkCommandPool m_graphics_command_pool;
+		VkCommandPool m_transfer_command_pool;
 		VkBuffer m_vertex_buffer;
 		VkDeviceMemory m_vertex_buffer_memory;
+		VkCommandBuffer m_transfer_command_buffer;
 
 		std::vector<VkImage> m_swapchain_images;
 		std::vector<VkImageView> m_swapchain_image_views;
