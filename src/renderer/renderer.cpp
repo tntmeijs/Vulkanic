@@ -9,6 +9,7 @@
 //////////////////////////////////////////////////////////////////////////
 
 // GLM
+#include "glm/mat4x4.hpp"
 #include "glm/vec3.hpp"
 
 //////////////////////////////////////////////////////////////////////////
@@ -95,6 +96,13 @@ const std::vector<Vertex> vertices =
 	{ {  0.5f,  0.5f, 0.0f }, { 0.0f, 0.0f, 1.0f } }
 };
 
+struct CameraData
+{
+	glm::mat4 model_matrix;
+	glm::mat4 view_matrix;
+	glm::mat4 projection_matrix;
+};
+
 Renderer::Renderer()
 	: m_window(nullptr)
 	, m_frame_index(0)
@@ -108,6 +116,7 @@ Renderer::~Renderer()
 
 	CleanUpSwapchain();
 
+	vkDestroyDescriptorSetLayout(m_device, m_camera_data_descriptor_set_layout, nullptr);
 	vkDestroyBuffer(m_device, m_vertex_buffer, nullptr);
 	vkFreeMemory(m_device, m_vertex_buffer_memory, nullptr);
 
@@ -148,6 +157,7 @@ void Renderer::InitializeVulkan()
 	CreateSwapchain();
 	CreateSwapchainImageViews();
 	CreateRenderPass();
+	CreateDescriptorSetLayout();
 	CreateGraphicsPipeline();
 	CreateFramebuffers();
 	CreateCommandPools();
@@ -1052,6 +1062,8 @@ void Renderer::CreateGraphicsPipeline()
 	// Pipeline layout
 	VkPipelineLayoutCreateInfo pipeline_layout_info = {};
 	pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+	pipeline_layout_info.setLayoutCount = 1;
+	pipeline_layout_info.pSetLayouts = &m_camera_data_descriptor_set_layout;
 
 	if (vkCreatePipelineLayout(m_device, &pipeline_layout_info, nullptr, &m_pipeline_layout) != VK_SUCCESS)
 		spdlog::error("Could not create a pipeline layout.");
@@ -1437,6 +1449,23 @@ void Renderer::CreateVertexBuffer()
 	// Clean up the staging buffer since it is no longer needed
 	vkDestroyBuffer(m_device, staging_buffer, nullptr);
 	vkFreeMemory(m_device, staging_buffer_memory, nullptr);
+}
+
+void Renderer::CreateDescriptorSetLayout()
+{
+	VkDescriptorSetLayoutBinding camera_data_layout_binding = {};
+	camera_data_layout_binding.binding = 0;
+	camera_data_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	camera_data_layout_binding.descriptorCount = 1;
+	camera_data_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+
+	VkDescriptorSetLayoutCreateInfo layout_create_info = {};
+	layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+	layout_create_info.bindingCount = 1;
+	layout_create_info.pBindings = &camera_data_layout_binding;
+
+	if (vkCreateDescriptorSetLayout(m_device, &layout_create_info, nullptr, &m_camera_data_descriptor_set_layout) != VK_SUCCESS)
+		spdlog::error("Could not create a descriptor set layout for the camera data.");
 }
 
 uint32_t Renderer::FindMemoryType(

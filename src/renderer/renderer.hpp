@@ -81,6 +81,7 @@ namespace vkc
 		void CleanUpSwapchain();
 		void CreateTransferCommandBuffer();
 		void CreateVertexBuffer();
+		void CreateDescriptorSetLayout();
 		
 		static uint32_t FindMemoryType(
 			uint32_t type_filter,
@@ -132,6 +133,7 @@ namespace vkc
 		VkFormat m_swapchain_format;
 		VkExtent2D m_swapchain_extent;
 		VkRenderPass m_render_pass;
+		VkDescriptorSetLayout m_camera_data_descriptor_set_layout;
 		VkPipelineLayout m_pipeline_layout;
 		VkPipeline m_graphics_pipeline;
 		VkCommandPool m_graphics_command_pool;
