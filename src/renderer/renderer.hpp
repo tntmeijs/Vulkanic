@@ -122,6 +122,7 @@ namespace vkc
 		QueueFamilyIndices m_queue_family_indices;
 		SwapchainSupportDetails m_swap_chain_support;
 		uint64_t m_frame_index;
+		uint32_t m_current_swapchain_image_index;
 
 		bool m_framebuffer_resized;
 
@@ -156,5 +157,6 @@ namespace vkc
 		std::vector<VkFence> m_in_flight_fences;
 		std::vector<VkBuffer> m_camera_ubos;
 		std::vector<VkDeviceMemory> m_camera_ubos_memory;
+		std::vector<VkDescriptorSet> m_descriptor_sets;
 	};
 }

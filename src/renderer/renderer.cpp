@@ -107,6 +107,7 @@ struct CameraData
 Renderer::Renderer()
 	: m_window(nullptr)
 	, m_frame_index(0)
+	, m_current_swapchain_image_index(0)
 	, m_framebuffer_resized(false)
 {}
 
@@ -209,12 +210,15 @@ void Renderer::Draw()
 {
 	// Wait for the fence of the old frame to be completed
 	vkWaitForFences(m_device, 1, &m_in_flight_fences[m_frame_index], VK_TRUE, std::numeric_limits<uint64_t>::max());
-
-	// The index stores the index of the swapchain image that is available for writing
-	uint32_t current_swapchain_image_index = 0;
-
+	
 	// Retrieve an image from the swapchain for writing (wait indefinitely for the image to become available)
-	auto result = vkAcquireNextImageKHR(m_device, m_swapchain, std::numeric_limits<uint64_t>::max(), m_in_flight_frame_image_available_semaphores[m_frame_index], VK_NULL_HANDLE, &current_swapchain_image_index);
+	auto result = vkAcquireNextImageKHR(
+		m_device,
+		m_swapchain,
+		std::numeric_limits<uint64_t>::max(),
+		m_in_flight_frame_image_available_semaphores[m_frame_index],
+		VK_NULL_HANDLE,
+		&m_current_swapchain_image_index);
 
 	// Recreate the swapchain if the current swapchain has become incompatible with the surface
 	if (result == VK_ERROR_OUT_OF_DATE_KHR)
@@ -242,7 +246,7 @@ void Renderer::Draw()
 	submit_info.pWaitSemaphores = wait_semaphores;
 	submit_info.pWaitDstStageMask = wait_stages;
 	submit_info.commandBufferCount = 1;
-	submit_info.pCommandBuffers = &m_command_buffers[current_swapchain_image_index];
+	submit_info.pCommandBuffers = &m_command_buffers[m_current_swapchain_image_index];
 	submit_info.signalSemaphoreCount = sizeof(signal_semaphores) / sizeof(signal_semaphores[0]);
 	submit_info.pSignalSemaphores = signal_semaphores;
 
@@ -252,7 +256,7 @@ void Renderer::Draw()
 	// Submit the command queue
 	if (vkQueueSubmit(m_graphics_queue, 1, &submit_info, m_in_flight_fences[m_frame_index]) != VK_SUCCESS)
 	{
-		spdlog::error("Could not submit the queue for frame #{}.", current_swapchain_image_index);
+		spdlog::error("Could not submit the queue for frame #{}.", m_current_swapchain_image_index);
 		return;
 	}
 
@@ -262,7 +266,7 @@ void Renderer::Draw()
 	present_info.pWaitSemaphores = signal_semaphores;
 	present_info.swapchainCount = 1;
 	present_info.pSwapchains = &m_swapchain;
-	present_info.pImageIndices = &current_swapchain_image_index;
+	present_info.pImageIndices = &m_current_swapchain_image_index;
 
 	// Request to present an image to the swapchain
 	result = vkQueuePresentKHR(m_present_queue, &present_info);
@@ -287,11 +291,11 @@ void Renderer::Draw()
 void Renderer::Update()
 {
 	static float rotate_amount = 0.0f;
-	rotate_amount += 0.01f;
+	rotate_amount += 0.0001f;
 
 	CameraData cam_data = {};
 	cam_data.model_matrix = glm::rotate(glm::mat4(1.0f), rotate_amount * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	cam_data.view_matrix = glm::lookAt(glm::vec3(0.0f, 2.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	cam_data.view_matrix = glm::lookAt(glm::vec3(0.0f, 0.0f, -0.5f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	cam_data.projection_matrix = glm::perspective(
 		90.0f,
 		static_cast<float>(m_swapchain_extent.width) / static_cast<float>(m_swapchain_extent.height),
@@ -299,12 +303,12 @@ void Renderer::Update()
 		1000.0f);
 
 	// GLM is for OpenGL, Vulkan uses an inverted Y-coordinate
-	// ubo.projection_matrix[1][1] *= -1.0f;
+	cam_data.projection_matrix[1][1] *= -1.0f;
 
 	void* data = nullptr;
-	vkMapMemory(m_device, m_camera_ubos_memory[m_frame_index], 0, sizeof(cam_data), 0, &data);
+	vkMapMemory(m_device, m_camera_ubos_memory[m_current_swapchain_image_index], 0, sizeof(cam_data), 0, &data);
 	memcpy(data, &cam_data, sizeof(cam_data));
-	vkUnmapMemory(m_device, m_camera_ubos_memory[m_frame_index]);
+	vkUnmapMemory(m_device, m_camera_ubos_memory[m_current_swapchain_image_index]);
 }
 
 void Renderer::TriggerFramebufferResized()
@@ -1314,6 +1318,17 @@ void Renderer::CreateCommandBuffers()
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(m_command_buffers[index], 0, 1, vertex_buffers, offsets);
 
+		// Bind the camera UBO
+		vkCmdBindDescriptorSets(
+			m_command_buffers[index],
+			VK_PIPELINE_BIND_POINT_GRAPHICS,
+			m_pipeline_layout,
+			0,
+			1,
+			&m_descriptor_sets[index],
+			0,
+			nullptr);
+
 		// Draw the triangle using hard-coded shader vertices
 		vkCmdDraw(m_command_buffers[index], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
 
@@ -1547,7 +1562,42 @@ void Renderer::CreateDescriptorSetLayout()
 
 void Renderer::CreateDescriptorSets()
 {
-	LEFT OFF HERE: https://vulkan-tutorial.com/Uniform_buffers/Descriptor_pool_and_sets
+	std::vector<VkDescriptorSetLayout> layouts(m_swapchain_images.size(), m_camera_data_descriptor_set_layout);
+
+	VkDescriptorSetAllocateInfo alloc_info = {};
+	alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+	alloc_info.descriptorPool = m_descriptor_pool;
+	alloc_info.descriptorSetCount = static_cast<uint32_t>(m_swapchain_images.size());
+	alloc_info.pSetLayouts = layouts.data();
+
+	m_descriptor_sets.resize(m_swapchain_images.size());
+	if (vkAllocateDescriptorSets(m_device, &alloc_info, m_descriptor_sets.data()) != VK_SUCCESS)
+	{
+		spdlog::error("Could not allocate descriptor sets.");
+		return;
+	}
+
+	spdlog::info("Successfully allocated descriptor sets.");
+
+	// Populate the newly allocated descriptor sets
+	for (auto index = 0; index < m_swapchain_images.size(); ++index)
+	{
+		VkDescriptorBufferInfo buffer_info = {};
+		buffer_info.buffer = m_camera_ubos[index];
+		buffer_info.offset = 0;
+		buffer_info.range = sizeof(CameraData);
+
+		VkWriteDescriptorSet descriptor_write = {};
+		descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptor_write.dstSet = m_descriptor_sets[index];
+		descriptor_write.dstBinding = 0;
+		descriptor_write.dstArrayElement = 0;
+		descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptor_write.descriptorCount = 1;
+		descriptor_write.pBufferInfo = &buffer_info;
+
+		vkUpdateDescriptorSets(m_device, 1, &descriptor_write, 0, nullptr);
+	}
 }
 
 uint32_t Renderer::FindMemoryType(
