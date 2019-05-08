@@ -1,5 +1,8 @@
 #pragma once
 
+// Application
+#include "vulkan_wrapper/vk_instance.hpp"
+
 //////////////////////////////////////////////////////////////////////////
 
 // Spdlog (including it here to avoid the "APIENTRY": macro redefinition warning)
@@ -55,9 +58,6 @@ namespace vkc
 		GLFWwindow* const GetHandle() const;
 
 	private:
-		void CreateInstance();
-		bool CheckValidationLayerSupport();
-		std::vector<const char*> GetRequiredInstanceExtensions();
 		void SetUpDebugMessenger();
 		void CreateSurface();
 		void SelectPhysicalDevice();
@@ -126,7 +126,6 @@ namespace vkc
 
 		bool m_framebuffer_resized;
 
-		VkInstance m_instance;
 		VkDebugUtilsMessengerEXT m_debug_messenger;
 		VkSurfaceKHR m_surface;
 		VkPhysicalDevice m_physical_device;
@@ -158,5 +157,7 @@ namespace vkc
 		std::vector<VkBuffer> m_camera_ubos;
 		std::vector<VkDeviceMemory> m_camera_ubos_memory;
 		std::vector<VkDescriptorSet> m_descriptor_sets;
+
+		vk_wrapper::VulkanInstance m_instance;
 	};
 }

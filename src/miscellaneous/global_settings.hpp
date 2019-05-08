@@ -4,7 +4,8 @@
 
 // C++ standard
 #include <array>
-#include <cstdint>
+#include <string>
+#include <vector>
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -29,7 +30,7 @@ namespace vkc::global_settings
 	//////////////////////////////////////////////////////////////////////////
 	// Vulkan validation layers
 	//////////////////////////////////////////////////////////////////////////
-	static const constexpr std::array<const char*, 1> validation_layer_names =
+	static const std::vector<std::string> validation_layer_names =
 	{
 		"VK_LAYER_LUNARG_standard_validation"
 	};
