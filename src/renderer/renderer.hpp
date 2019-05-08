@@ -49,6 +49,7 @@ namespace vkc
 		void InitializeVulkan();
 		void SetupWindow();
 		void Draw();
+		void Update();
 		void TriggerFramebufferResized();
 
 		GLFWwindow* const GetHandle() const;
@@ -81,7 +82,10 @@ namespace vkc
 		void CleanUpSwapchain();
 		void CreateTransferCommandBuffer();
 		void CreateVertexBuffer();
+		void CreateUniformBuffers();
+		void CreateDescriptorPool();
 		void CreateDescriptorSetLayout();
+		void CreateDescriptorSets();
 		
 		static uint32_t FindMemoryType(
 			uint32_t type_filter,
@@ -141,6 +145,7 @@ namespace vkc
 		VkBuffer m_vertex_buffer;
 		VkDeviceMemory m_vertex_buffer_memory;
 		VkCommandBuffer m_transfer_command_buffer;
+		VkDescriptorPool m_descriptor_pool;
 
 		std::vector<VkImage> m_swapchain_images;
 		std::vector<VkImageView> m_swapchain_image_views;
@@ -149,5 +154,7 @@ namespace vkc
 		std::vector<VkSemaphore> m_in_flight_frame_image_available_semaphores;
 		std::vector<VkSemaphore> m_in_flight_render_finished_semaphores;
 		std::vector<VkFence> m_in_flight_fences;
+		std::vector<VkBuffer> m_camera_ubos;
+		std::vector<VkDeviceMemory> m_camera_ubos_memory;
 	};
 }

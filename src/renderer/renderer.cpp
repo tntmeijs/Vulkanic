@@ -9,6 +9,7 @@
 //////////////////////////////////////////////////////////////////////////
 
 // GLM
+#include "glm/gtc/matrix_transform.hpp"
 #include "glm/mat4x4.hpp"
 #include "glm/vec3.hpp"
 
@@ -163,6 +164,9 @@ void Renderer::InitializeVulkan()
 	CreateCommandPools();
 	CreateTransferCommandBuffer();
 	CreateVertexBuffer();
+	CreateUniformBuffers();
+	CreateDescriptorPool();
+	CreateDescriptorSets();
 	CreateCommandBuffers();
 	CreateSynchronizationObjects();
 }
@@ -278,6 +282,29 @@ void Renderer::Draw()
 
 	// Advance to the next frame
 	m_frame_index = (m_frame_index + 1) % global_settings::maximum_in_flight_frame_count;
+}
+
+void Renderer::Update()
+{
+	static float rotate_amount = 0.0f;
+	rotate_amount += 0.01f;
+
+	CameraData cam_data = {};
+	cam_data.model_matrix = glm::rotate(glm::mat4(1.0f), rotate_amount * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
+	cam_data.view_matrix = glm::lookAt(glm::vec3(0.0f, 2.0f, 0.0f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	cam_data.projection_matrix = glm::perspective(
+		90.0f,
+		static_cast<float>(m_swapchain_extent.width) / static_cast<float>(m_swapchain_extent.height),
+		0.1f,
+		1000.0f);
+
+	// GLM is for OpenGL, Vulkan uses an inverted Y-coordinate
+	// ubo.projection_matrix[1][1] *= -1.0f;
+
+	void* data = nullptr;
+	vkMapMemory(m_device, m_camera_ubos_memory[m_frame_index], 0, sizeof(cam_data), 0, &data);
+	memcpy(data, &cam_data, sizeof(cam_data));
+	vkUnmapMemory(m_device, m_camera_ubos_memory[m_frame_index]);
 }
 
 void Renderer::TriggerFramebufferResized()
@@ -1361,6 +1388,9 @@ void Renderer::RecreateSwapchain()
 	CreateRenderPass();
 	CreateGraphicsPipeline();
 	CreateFramebuffers();
+	CreateUniformBuffers();
+	CreateDescriptorPool();
+	CreateDescriptorSets();
 	CreateCommandBuffers();
 
 	spdlog::info("Recreated the swapchain successfully.");
@@ -1368,10 +1398,14 @@ void Renderer::RecreateSwapchain()
 
 void Renderer::CleanUpSwapchain()
 {
-	for (const auto& framebuffer : m_swapchain_framebuffers)
+	for (auto index = 0; index < m_swapchain_images.size(); ++index)
 	{
-		vkDestroyFramebuffer(m_device, framebuffer, nullptr);
+		vkDestroyFramebuffer(m_device, m_swapchain_framebuffers[index], nullptr);
+		vkDestroyBuffer(m_device, m_camera_ubos[index], nullptr);
+		vkFreeMemory(m_device, m_camera_ubos_memory[index], nullptr);
 	}
+
+	vkDestroyDescriptorPool(m_device, m_descriptor_pool, nullptr);
 
 	// No need to recreate the pool, freeing the command buffers is enough
 	vkFreeCommandBuffers(m_device, m_graphics_command_pool, static_cast<uint32_t>(m_command_buffers.size()), m_command_buffers.data());
@@ -1451,6 +1485,49 @@ void Renderer::CreateVertexBuffer()
 	vkFreeMemory(m_device, staging_buffer_memory, nullptr);
 }
 
+void Renderer::CreateUniformBuffers()
+{
+	VkDeviceSize ubo_size = sizeof(CameraData);
+
+	m_camera_ubos.resize(m_swapchain_images.size());
+	m_camera_ubos_memory.resize(m_swapchain_images.size());
+
+	// Create a camera data UBO for each image in the swapchain
+	for (auto index = 0; index < m_swapchain_images.size(); ++index)
+	{
+		CreateBuffer(
+			ubo_size,
+			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+			m_camera_ubos[index],
+			m_camera_ubos_memory[index],
+			m_queue_family_indices,
+			m_device,
+			m_physical_device);
+	}
+}
+
+void Renderer::CreateDescriptorPool()
+{
+	VkDescriptorPoolSize descriptor_pool_size = {};
+	descriptor_pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptor_pool_size.descriptorCount = static_cast<uint32_t>(m_swapchain_images.size());
+
+	VkDescriptorPoolCreateInfo pool_create_info = {};
+	pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+	pool_create_info.poolSizeCount = 1;
+	pool_create_info.pPoolSizes = &descriptor_pool_size;
+	pool_create_info.maxSets = static_cast<uint32_t>(m_swapchain_images.size());
+
+	if (vkCreateDescriptorPool(m_device, &pool_create_info, nullptr, &m_descriptor_pool) != VK_SUCCESS)
+	{
+		spdlog::error("Could not create a descriptor pool.");
+		return;
+	}
+
+	spdlog::info("Successfully created a descriptor pool.");
+}
+
 void Renderer::CreateDescriptorSetLayout()
 {
 	VkDescriptorSetLayoutBinding camera_data_layout_binding = {};
@@ -1466,6 +1543,11 @@ void Renderer::CreateDescriptorSetLayout()
 
 	if (vkCreateDescriptorSetLayout(m_device, &layout_create_info, nullptr, &m_camera_data_descriptor_set_layout) != VK_SUCCESS)
 		spdlog::error("Could not create a descriptor set layout for the camera data.");
+}
+
+void Renderer::CreateDescriptorSets()
+{
+	LEFT OFF HERE: https://vulkan-tutorial.com/Uniform_buffers/Descriptor_pool_and_sets
 }
 
 uint32_t Renderer::FindMemoryType(
