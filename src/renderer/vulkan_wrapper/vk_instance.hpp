@@ -13,8 +13,8 @@ namespace vkc::vk_wrapper
 	class VulkanInstance
 	{
 	public:
-		VulkanInstance() noexcept(true) {};
-		~VulkanInstance() noexcept(true) {};
+		VulkanInstance() noexcept(true) {}
+		~VulkanInstance() noexcept(true) {}
 
 		/** Create a Vulkan instance */
 		/**
