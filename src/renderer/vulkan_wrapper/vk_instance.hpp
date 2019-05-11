@@ -2,7 +2,7 @@
 #define VK_INSTANCE_HPP
 
 // Vulkan
-#include <vulkan/vulkan.hpp>
+#include <vulkan/vulkan.h>
 
 // C++ standard library
 #include <string>
@@ -13,7 +13,7 @@ namespace vkc::vk_wrapper
 	class VulkanInstance
 	{
 	public:
-		VulkanInstance() noexcept(true) {}
+		VulkanInstance() noexcept(true) : m_instance(VK_NULL_HANDLE) {}
 		~VulkanInstance() noexcept(true) {}
 
 		/** Create a Vulkan instance */
@@ -38,13 +38,13 @@ namespace vkc::vk_wrapper
 			const std::vector<std::string>& validation_layers) noexcept(false);
 
 		/** Get a reference to the Vulkan object */
-		const vk::Instance& GetNative() const noexcept(true);
+		const VkInstance& GetNative() const noexcept(true);
 
 		/** Destroy the Vulkan instance */
 		void Destroy() noexcept(true);
 
 	private:
-		vk::Instance m_instance;
+		VkInstance m_instance;
 	};
 }
 

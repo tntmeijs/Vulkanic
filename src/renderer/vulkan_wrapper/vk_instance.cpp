@@ -35,14 +35,13 @@ void VulkanInstance::Create(
 		engine_version_minor,
 		engine_version_patch);
 
-	vk::ApplicationInfo app_info =
-	{
-		app_name.c_str(),		// Application name
-		app_version_number,		// Application version
-		engine_name.c_str(),	// Engine name
-		engine_version_number,	// Engine version
-		VK_API_VERSION_1_0		// Vulkan API version
-	};
+	VkApplicationInfo app_info	= {};
+	app_info.sType				= VK_STRUCTURE_TYPE_APPLICATION_INFO;
+	app_info.pApplicationName	= app_name.c_str();
+	app_info.applicationVersion	= app_version_number;
+	app_info.pEngineName		= engine_name.c_str();
+	app_info.engineVersion		= engine_version_number;
+	app_info.apiVersion			= VK_API_VERSION_1_0;
 
 	std::vector<std::string> available_extension_names;
 	std::vector<std::string> available_layer_names;
@@ -50,10 +49,13 @@ void VulkanInstance::Create(
 	// Configure extensions if necessary
 	if (!extensions.empty())
 	{
-		auto available_extensions = vk::enumerateInstanceExtensionProperties();
+		std::uint32_t extension_count = 0;
+		std::vector<VkExtensionProperties> available_extensions;
+		vkEnumerateInstanceExtensionProperties(nullptr, &extension_count, nullptr);
+		available_extensions.resize(extension_count);
+		vkEnumerateInstanceExtensionProperties(nullptr, &extension_count, available_extensions.data());
 
 		// Save the names of all available extensions
-		available_extension_names.reserve(available_extensions.size());
 		for (const auto& extension : available_extensions)
 		{
 			available_extension_names.push_back(extension.extensionName);
@@ -71,7 +73,11 @@ void VulkanInstance::Create(
 	// Configure validation layers if necessary
 	if (!validation_layers.empty())
 	{
-		auto available_validation_layers = vk::enumerateInstanceLayerProperties();
+		std::uint32_t layer_count = 0;
+		std::vector<VkLayerProperties> available_validation_layers;
+		vkEnumerateInstanceLayerProperties(&layer_count, nullptr);
+		available_validation_layers.resize(layer_count);
+		vkEnumerateInstanceLayerProperties(&layer_count, available_validation_layers.data());
 
 		// Save the names of all available validation layers
 		available_layer_names.reserve(available_validation_layers.size());
@@ -93,7 +99,7 @@ void VulkanInstance::Create(
 	const auto cstring_extensions = utility::ConvertVectorOfStringsToCString(extensions);
 	const auto cstring_layers = utility::ConvertVectorOfStringsToCString(validation_layers);
 
-	vk::InstanceCreateInfo instance_info = {};
+	VkInstanceCreateInfo instance_info = {};
 	instance_info.pApplicationInfo = &app_info;
 	instance_info.enabledExtensionCount = static_cast<uint32_t>(cstring_extensions.size());
 	instance_info.ppEnabledExtensionNames = cstring_extensions.empty() ? nullptr : cstring_extensions.data();
@@ -101,15 +107,20 @@ void VulkanInstance::Create(
 	instance_info.ppEnabledLayerNames = cstring_layers.empty() ? nullptr : cstring_layers.data();
 
 	// Create the Vulkan instance
-	m_instance = vk::createInstance(instance_info);
+	auto result = vkCreateInstance(&instance_info, nullptr, &m_instance);
+
+	if (result != VK_SUCCESS)
+	{
+		throw utility::CriticalVulkanError("Could not create an instance.");
+	}
 }
 
-const vk::Instance& VulkanInstance::GetNative() const noexcept(true)
+const VkInstance& VulkanInstance::GetNative() const noexcept(true)
 {
 	return m_instance;
 }
 
 void VulkanInstance::Destroy() noexcept(true)
 {
-	m_instance.destroy();
+	vkDestroyInstance(m_instance, nullptr);
 }
