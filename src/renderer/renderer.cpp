@@ -105,8 +105,7 @@ struct CameraData
 };
 
 Renderer::Renderer()
-	: m_window(nullptr)
-	, m_frame_index(0)
+	: m_frame_index(0)
 	, m_current_swapchain_image_index(0)
 	, m_framebuffer_resized(false)
 {}
@@ -150,8 +149,10 @@ Renderer::~Renderer()
 	glfwTerminate();
 }
 
-void Renderer::InitializeVulkan()
+void Renderer::Initialize(GLFWwindow* window)
 {
+	m_window = window;
+
 	// Add all extensions required by GLFW
 	uint32_t glfw_extension_count = 0;
 	auto glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
@@ -199,40 +200,6 @@ void Renderer::InitializeVulkan()
 	CreateDescriptorSets();
 	CreateCommandBuffers();
 	CreateSynchronizationObjects();
-}
-
-void Renderer::SetupWindow()
-{
-	if (!glfwInit())
-	{
-		spdlog::error("Could not initialize GLFW.");
-		assert(false);
-	}
-
-	spdlog::info("GLFW has been initialized.");
-
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-
-	m_window = glfwCreateWindow(
-		global_settings::default_window_width,
-		global_settings::default_window_height,
-		global_settings::window_title,
-		nullptr, nullptr);
-
-	// Save the "this" pointer for use in the callbacks
-	glfwSetWindowUserPointer(m_window, this);
-
-	if (!m_window)
-	{
-		glfwDestroyWindow(m_window);
-		glfwTerminate();
-		spdlog::error("Could not create a window.");
-		assert(false);
-	}
-
-	glfwMakeContextCurrent(m_window);
-
-	spdlog::info("A window has been created.");
 }
 
 void Renderer::Draw()
@@ -343,11 +310,6 @@ void Renderer::Update()
 void Renderer::TriggerFramebufferResized()
 {
 	m_framebuffer_resized = true;
-}
-
-GLFWwindow* const Renderer::GetHandle() const
-{
-	return m_window;
 }
 
 void Renderer::CreateSurface()

@@ -1,7 +1,7 @@
 // Application
+#include "miscellaneous/exceptions.hpp"
 #include "vulkan_debug_messenger.hpp"
 #include "vulkan_instance.hpp"
-#include "vulkan_utility.hpp"
 
 // Spdlog
 #include <spdlog/spdlog.h>
@@ -24,7 +24,7 @@ void VulkanDebugMessenger::Create(VulkanInstance instance) noexcept(false)
 
 	if (result != VK_SUCCESS)
 	{
-		throw utility::CriticalVulkanError("Could not create a debug messenger.");
+		throw exception::CriticalVulkanError("Could not create a debug messenger.");
 	}
 }
 

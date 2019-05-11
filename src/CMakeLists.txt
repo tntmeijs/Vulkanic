@@ -1,5 +1,10 @@
 set(MISCELLANEOUS_FILES
-    miscellaneous/global_settings.hpp)
+    miscellaneous/global_settings.hpp
+    miscellaneous/exceptions.hpp)
+
+set(CORE_FILES
+    core/window.cpp
+    core/window.hpp)
 
 set(RENDERER_FILES
     renderer/renderer.cpp
@@ -24,6 +29,7 @@ add_executable(
     ${PROJECT_NAME}
     main.cpp
     ${MISCELLANEOUS_FILES}
+    ${CORE_FILES}
     ${RENDERER_FILES}
     ${VULKAN_WRAPPER_FILES})
 
@@ -32,5 +38,6 @@ target_link_libraries(${PROJECT_NAME} Vulkan::Vulkan)
 # Group the source files to keep the project nicely structured
 source_group("main" FILES main.cpp)
 source_group("miscellaneous" FILES ${MISCELLANEOUS_FILES})
+source_group("core" FILES ${CORE_FILES})
 source_group("renderer" FILES ${RENDERER_FILES})
 source_group("vulkan_wrapper" FILES ${VULKAN_WRAPPER_FILES})

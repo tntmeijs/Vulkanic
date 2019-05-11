@@ -1,4 +1,5 @@
 // Application
+#include "miscellaneous/exceptions.hpp"
 #include "vulkan_instance.hpp"
 #include "vulkan_utility.hpp"
 
@@ -66,7 +67,7 @@ void VulkanInstance::Create(
 			extensions,
 			available_extension_names))
 		{
-			throw utility::CriticalVulkanError("A required extension is missing.");
+			throw exception::CriticalVulkanError("A required extension is missing.");
 		}
 	}
 
@@ -91,7 +92,7 @@ void VulkanInstance::Create(
 			validation_layers,
 			available_layer_names))
 		{
-			throw utility::CriticalVulkanError("A required validation layer is missing.");
+			throw exception::CriticalVulkanError("A required validation layer is missing.");
 		}
 	}
 
@@ -111,7 +112,7 @@ void VulkanInstance::Create(
 
 	if (result != VK_SUCCESS)
 	{
-		throw utility::CriticalVulkanError("Could not create an instance.");
+		throw exception::CriticalVulkanError("Could not create an instance.");
 	}
 }
 

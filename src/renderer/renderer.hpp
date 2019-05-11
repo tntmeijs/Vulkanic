@@ -50,13 +50,10 @@ namespace vkc
 		Renderer();
 		~Renderer();
 
-		void InitializeVulkan();
-		void SetupWindow();
+		void Initialize(GLFWwindow* window);
 		void Draw();
 		void Update();
 		void TriggerFramebufferResized();
-
-		GLFWwindow* const GetHandle() const;
 
 	private:
 		void CreateSurface();

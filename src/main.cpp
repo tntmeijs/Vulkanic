@@ -1,7 +1,13 @@
 //////////////////////////////////////////////////////////////////////////
 
-// Renderer
+// Application renderer
 #include "renderer/renderer.hpp"
+
+// Application core
+#include "core/window.hpp"
+
+// Application miscellaneous
+#include "miscellaneous/global_settings.hpp"
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -10,36 +16,56 @@ int main(int argc, char* argv[])
 	// Prevent "unreferenced formal parameter" warning from triggering
 	argc, argv;
 
+	vkc::Window window;
 	vkc::Renderer renderer;
-	renderer.SetupWindow();
-	renderer.InitializeVulkan();
 
-	auto* const window_handle = renderer.GetHandle();
-	
-	glfwSetKeyCallback(window_handle, [](GLFWwindow* const window, int key, int action, int scancode, int mods)
-	{
-		// Prevent "unreferenced formal parameter" warning from triggering
-		scancode, mods;
+	// Create a window
+	window.Create(
+		vkc::global_settings::default_window_width,
+		vkc::global_settings::default_window_height,
+		vkc::global_settings::window_title);
 
+	// Register key callback
+	window.OnKey([&window](int key, int action) {
 		if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
-			glfwSetWindowShouldClose(window, GLFW_TRUE);
+		{
+			window.Stop();
+		}
 	});
 
-	glfwSetFramebufferSizeCallback(window_handle, [](GLFWwindow* const window, int width, int height)
-	{
+	// Register resize callback
+	window.OnResize([&renderer](int new_width, int new_height) {
 		// Prevent "unreferenced formal parameter" warning from triggering
-		width, height;
+		new_width, new_height;
 
-		auto* const renderer = reinterpret_cast<vkc::Renderer*>(glfwGetWindowUserPointer(window));
-		renderer->TriggerFramebufferResized();
+		renderer.TriggerFramebufferResized();
 	});
 
-	while (!glfwWindowShouldClose(window_handle))
-	{
-		glfwPollEvents();
+	// Application initialization
+	window.OnInitialization([&renderer, &window]() {
+		renderer.Initialize(window.GetNative());
+	});
+
+	// Application update
+	window.OnUpdate([&renderer](double delta_time) {
+		// Prevent "unreferenced formal parameter" warning from triggering
+		delta_time;
+
 		renderer.Update();
+	});
+
+	// Application rendering
+	window.OnDraw([&renderer]() {
 		renderer.Draw();
-	}
+	});
+
+	// Application clean-up
+	window.OnShutDown([&renderer]() {
+		// #TODO: No clean-up functions yet
+	});
+
+	// Application entry point
+	window.EnterMainLoop();
 
     return 0;
 }
