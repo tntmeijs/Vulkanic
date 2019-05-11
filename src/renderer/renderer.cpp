@@ -139,7 +139,7 @@ Renderer::~Renderer()
 	vkDestroyDevice(m_device, nullptr);
 
 #ifdef _DEBUG
-	DestroyDebugUtilsMessengerEXT(m_instance.GetNative(), m_debug_messenger, nullptr);
+	m_debug_messenger.Destroy(m_instance);
 #endif
 
 	vkDestroySurfaceKHR(m_instance.GetNative(), m_surface, nullptr);
@@ -177,7 +177,11 @@ void Renderer::InitializeVulkan()
 		required_extensions,
 		global_settings::validation_layer_names);
 
-	SetUpDebugMessenger();
+#ifdef _DEBUG
+	// Enable validation layer messenger in debug mode
+	m_debug_messenger.Create(m_instance);
+#endif
+
 	CreateSurface();
 	SelectPhysicalDevice();
 	CreateLogicalDevice();
@@ -344,29 +348,6 @@ void Renderer::TriggerFramebufferResized()
 GLFWwindow* const Renderer::GetHandle() const
 {
 	return m_window;
-}
-
-void Renderer::SetUpDebugMessenger()
-{
-	// Only set-up the debug messenger in debug builds
-#ifdef _DEBUG
-	VkDebugUtilsMessengerCreateInfoEXT create_info = {};
-	create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-	create_info.messageSeverity =
-		VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT |
-		VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT |
-		VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-	create_info.messageType =
-		VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT		|
-		VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT	|
-		VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-	create_info.pfnUserCallback = DebugMessageCallback;
-#endif
-
-	if (CreateDebugUtilsMessengerEXT(m_instance.GetNative(), &create_info, nullptr, &m_debug_messenger) != VK_SUCCESS)
-	{
-		spdlog::error("Could not set-up the debug messenger.");
-	}
 }
 
 void Renderer::CreateSurface()

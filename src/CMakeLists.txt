@@ -8,7 +8,9 @@ set(RENDERER_FILES
 set(VULKAN_WRAPPER_FILES
     renderer/vulkan_wrapper/vulkan_utility.hpp
     renderer/vulkan_wrapper/vulkan_instance.cpp
-    renderer/vulkan_wrapper/vulkan_instance.hpp)
+    renderer/vulkan_wrapper/vulkan_instance.hpp
+    renderer/vulkan_wrapper/vulkan_debug_messenger.cpp
+    renderer/vulkan_wrapper/vulkan_debug_messenger.hpp)
 
 # Find Vulkan on the system
 find_package(Vulkan REQUIRED)
@@ -31,4 +33,4 @@ target_link_libraries(${PROJECT_NAME} Vulkan::Vulkan)
 source_group("main" FILES main.cpp)
 source_group("miscellaneous" FILES ${MISCELLANEOUS_FILES})
 source_group("renderer" FILES ${RENDERER_FILES})
-source_group("vulkan" FILES ${VULKAN_WRAPPER_FILES})
+source_group("vulkan_wrapper" FILES ${VULKAN_WRAPPER_FILES})

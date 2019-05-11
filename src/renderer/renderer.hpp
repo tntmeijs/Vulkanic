@@ -1,6 +1,7 @@
 #pragma once
 
 // Application
+#include "vulkan_wrapper/vulkan_debug_messenger.hpp"
 #include "vulkan_wrapper/vulkan_instance.hpp"
 
 //////////////////////////////////////////////////////////////////////////
@@ -58,7 +59,6 @@ namespace vkc
 		GLFWwindow* const GetHandle() const;
 
 	private:
-		void SetUpDebugMessenger();
 		void CreateSurface();
 		void SelectPhysicalDevice();
 		uint32_t RatePhysicalDeviceSuitability(const VkPhysicalDevice& physical_device);
@@ -126,7 +126,6 @@ namespace vkc
 
 		bool m_framebuffer_resized;
 
-		VkDebugUtilsMessengerEXT m_debug_messenger;
 		VkSurfaceKHR m_surface;
 		VkPhysicalDevice m_physical_device;
 		VkDevice m_device;
@@ -159,5 +158,6 @@ namespace vkc
 		std::vector<VkDescriptorSet> m_descriptor_sets;
 
 		vk_wrapper::VulkanInstance m_instance;
+		vk_wrapper::VulkanDebugMessenger m_debug_messenger;
 	};
 }
