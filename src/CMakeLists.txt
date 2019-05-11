@@ -6,9 +6,9 @@ set(RENDERER_FILES
     renderer/renderer.hpp)
 
 set(VULKAN_WRAPPER_FILES
-    renderer/vulkan_wrapper/vk_utility.hpp
-    renderer/vulkan_wrapper/vk_instance.cpp
-    renderer/vulkan_wrapper/vk_instance.hpp)
+    renderer/vulkan_wrapper/vulkan_utility.hpp
+    renderer/vulkan_wrapper/vulkan_instance.cpp
+    renderer/vulkan_wrapper/vulkan_instance.hpp)
 
 # Find Vulkan on the system
 find_package(Vulkan REQUIRED)

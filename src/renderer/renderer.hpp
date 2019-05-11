@@ -1,7 +1,7 @@
 #pragma once
 
 // Application
-#include "vulkan_wrapper/vk_instance.hpp"
+#include "vulkan_wrapper/vulkan_instance.hpp"
 
 //////////////////////////////////////////////////////////////////////////
 

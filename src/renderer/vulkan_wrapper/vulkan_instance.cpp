@@ -1,6 +1,6 @@
 // Application
-#include "vk_instance.hpp"
-#include "vk_utility.hpp"
+#include "vulkan_instance.hpp"
+#include "vulkan_utility.hpp"
 
 // Spdlog
 #include <spdlog/spdlog.h>
