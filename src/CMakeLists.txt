@@ -15,7 +15,9 @@ set(VULKAN_WRAPPER_FILES
     renderer/vulkan_wrapper/vulkan_instance.cpp
     renderer/vulkan_wrapper/vulkan_instance.hpp
     renderer/vulkan_wrapper/vulkan_debug_messenger.cpp
-    renderer/vulkan_wrapper/vulkan_debug_messenger.hpp)
+    renderer/vulkan_wrapper/vulkan_debug_messenger.hpp
+    renderer/vulkan_wrapper/vulkan_device.cpp
+    renderer/vulkan_wrapper/vulkan_device.hpp)
 
 # Find Vulkan on the system
 find_package(Vulkan REQUIRED)
