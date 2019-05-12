@@ -1,19 +1,18 @@
 #pragma once
 
-// Application
+// Application Vulkan wrappers
 #include "vulkan_wrapper/vulkan_debug_messenger.hpp"
+#include "vulkan_wrapper/vulkan_device.hpp"
 #include "vulkan_wrapper/vulkan_instance.hpp"
+#include "vulkan_wrapper/vulkan_swapchain.hpp"
+
+// Application core
+#include "core/window.hpp"
 
 //////////////////////////////////////////////////////////////////////////
 
 // Spdlog (including it here to avoid the "APIENTRY": macro redefinition warning)
 #include <spdlog/spdlog.h>
-
-// Vulkan
-#include <vulkan/vulkan.h>
-
-// GLFW
-#include <glfw/glfw3.h>
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -25,18 +24,6 @@
 
 namespace vkc
 {
-	struct QueueFamilyIndices
-	{
-		std::optional<std::pair<uint32_t, uint32_t>> graphics_family_index;
-		std::optional<std::pair<uint32_t, uint32_t>> present_family_index;
-		std::optional<std::pair<uint32_t, uint32_t>> transfer_family_index;
-
-		bool AllIndicesFound()
-		{
-			return (graphics_family_index.has_value() && present_family_index.has_value());
-		}
-	};
-
 	struct SwapchainSupportDetails
 	{
 		VkSurfaceCapabilitiesKHR capabilities;
@@ -50,18 +37,12 @@ namespace vkc
 		Renderer();
 		~Renderer();
 
-		void Initialize(GLFWwindow* window);
+		void Initialize(const Window& window);
 		void Draw();
 		void Update();
 		void TriggerFramebufferResized();
 
 	private:
-		void CreateSurface();
-		void SelectPhysicalDevice();
-		uint32_t RatePhysicalDeviceSuitability(const VkPhysicalDevice& physical_device);
-		QueueFamilyIndices FindQueueFamiliesOfSelectedPhysicalDevice();
-		void CreateLogicalDevice();
-		bool CheckPhysicalDeviceExtensionSupport();
 		void QuerySwapchainSupport();
 		VkSurfaceFormatKHR ChooseSwapchainSurfaceFormat();
 		VkPresentModeKHR ChooseSwapchainSurfacePresentMode();
@@ -77,7 +58,6 @@ namespace vkc
 		void CreateSynchronizationObjects();
 		void RecreateSwapchain();
 		void CleanUpSwapchain();
-		void CreateTransferCommandBuffer();
 		void CreateVertexBuffer();
 		void CreateUniformBuffers();
 		void CreateDescriptorPool();
@@ -103,33 +83,26 @@ namespace vkc
 			VkMemoryPropertyFlags properties,
 			VkBuffer& buffer,
 			VkDeviceMemory& buffer_memory,
-			const QueueFamilyIndices& queue_family_indices,
 			const VkDevice& device,
 			const VkPhysicalDevice physical_device);
 
 		static void CopyStagingBufferToDeviceLocalBuffer(
+			const VkDevice& device,
 			const VkBuffer& source,
 			const VkBuffer& destination,
 			VkDeviceSize size,
-			const VkCommandBuffer& transfer_command_buffer,
-			const VkQueue& transfer_queue);
+			const VkQueue& transfer_queue,
+			const VkCommandPool pool);
 
 	private:
 		GLFWwindow* m_window;
-		QueueFamilyIndices m_queue_family_indices;
 		SwapchainSupportDetails m_swap_chain_support;
 		uint64_t m_frame_index;
 		uint32_t m_current_swapchain_image_index;
 
 		bool m_framebuffer_resized;
 
-		VkSurfaceKHR m_surface;
-		VkPhysicalDevice m_physical_device;
-		VkDevice m_device;
-		VkQueue m_graphics_queue;
-		VkQueue m_present_queue;
-		VkQueue m_transfer_queue;
-		VkSwapchainKHR m_swapchain;
+		VkSwapchainKHR m_swapchain_khr;
 		VkFormat m_swapchain_format;
 		VkExtent2D m_swapchain_extent;
 		VkRenderPass m_render_pass;
@@ -137,10 +110,8 @@ namespace vkc
 		VkPipelineLayout m_pipeline_layout;
 		VkPipeline m_graphics_pipeline;
 		VkCommandPool m_graphics_command_pool;
-		VkCommandPool m_transfer_command_pool;
 		VkBuffer m_vertex_buffer;
 		VkDeviceMemory m_vertex_buffer_memory;
-		VkCommandBuffer m_transfer_command_buffer;
 		VkDescriptorPool m_descriptor_pool;
 
 		std::vector<VkImage> m_swapchain_images;
@@ -156,5 +127,7 @@ namespace vkc
 
 		vk_wrapper::VulkanInstance m_instance;
 		vk_wrapper::VulkanDebugMessenger m_debug_messenger;
+		vk_wrapper::VulkanSwapchain m_swapchain;
+		vk_wrapper::VulkanDevice m_device;
 	};
 }

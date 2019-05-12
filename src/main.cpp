@@ -43,7 +43,7 @@ int main(int argc, char* argv[])
 
 	// Application initialization
 	window.OnInitialization([&renderer, &window]() {
-		renderer.Initialize(window.GetNative());
+		renderer.Initialize(window);
 	});
 
 	// Application update

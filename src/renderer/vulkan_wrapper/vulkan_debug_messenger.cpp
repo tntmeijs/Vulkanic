@@ -28,7 +28,7 @@ void VulkanDebugMessenger::Create(VulkanInstance instance) noexcept(false)
 	}
 }
 
-void VulkanDebugMessenger::Destroy(VulkanInstance instance) noexcept(true)
+void VulkanDebugMessenger::Destroy(VulkanInstance instance) const noexcept(true)
 {
 	DestroyDebugUtilsMessengerEXT(instance.GetNative(), nullptr, m_debug_messenger);
 }

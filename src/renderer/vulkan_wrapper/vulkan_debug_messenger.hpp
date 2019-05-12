@@ -11,14 +11,14 @@ namespace vkc::vk_wrapper
 	class VulkanDebugMessenger
 	{
 	public:
-		VulkanDebugMessenger() noexcept(true) {}
+		VulkanDebugMessenger() noexcept(true) : m_debug_messenger(VK_NULL_HANDLE) {}
 		~VulkanDebugMessenger() noexcept(true) {}
 
 		/** Create a Vulkan debug messenger */
 		void Create(VulkanInstance instance) noexcept(false);
 
 		/** Destroy an existing Vulkan debug messenger */
-		void Destroy(VulkanInstance instance) noexcept(true);
+		void Destroy(VulkanInstance instance) const noexcept(true);
 
 	private:
 		/** Same as the API function, but wraps the "vkGetInstanceProcAddr" call */

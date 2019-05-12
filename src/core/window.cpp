@@ -31,7 +31,10 @@ void Window::Create(
 	// Check whether the window was created successfully
 	if (!m_window_handle)
 	{
-		Destroy();
+		// Destroy the window and stop GLFW
+		glfwDestroyWindow(m_window_handle);
+		glfwTerminate();
+
 		throw exception::CriticalWindowError("Could not create a window.");
 	}
 
@@ -41,12 +44,6 @@ void Window::Create(
 	// Register callbacks
 	glfwSetKeyCallback(m_window_handle, OnKeyInput);
 	glfwSetFramebufferSizeCallback(m_window_handle, OnFramebufferResize);
-}
-
-void Window::Destroy() const noexcept(true)
-{
-	glfwDestroyWindow(m_window_handle);
-	glfwTerminate();
 }
 
 GLFWwindow* Window::GetNative() const noexcept(true)
@@ -131,6 +128,10 @@ void Window::EnterMainLoop() const noexcept(true)
 	{
 		m_shut_down_callback();
 	}
+
+	// Destroy the window and stop GLFW
+	glfwDestroyWindow(m_window_handle);
+	glfwTerminate();
 }
 
 void Window::PollInput() const noexcept(true)

@@ -37,11 +37,11 @@ namespace vkc::vk_wrapper
 			const std::vector<std::string>& extensions,
 			const std::vector<std::string>& validation_layers) noexcept(false);
 
-		/** Get a reference to the Vulkan object */
+		/** Get a reference to the instance object */
 		const VkInstance& GetNative() const noexcept(true);
 
 		/** Destroy the Vulkan instance */
-		void Destroy() noexcept(true);
+		void Destroy() const noexcept(true);
 
 	private:
 		VkInstance m_instance;

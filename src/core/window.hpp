@@ -22,9 +22,6 @@ namespace vkc
 			std::uint32_t initial_height,
 			std::string title) noexcept(false);
 
-		/** Destroy the window and terminate GLFW */
-		void Destroy() const noexcept(true);
-
 		/** Get a handle to the GLFW window */
 		GLFWwindow* GetNative() const noexcept(true);
 

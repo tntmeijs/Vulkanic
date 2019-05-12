@@ -11,19 +11,19 @@ using namespace vkc::vk_wrapper;
 void VulkanInstance::Create(
 	const std::string app_name,
 	const std::string engine_name,
-	uint32_t app_version_major,
-	uint32_t app_version_minor,
-	uint32_t app_version_patch,
-	uint32_t engine_version_major,
-	uint32_t engine_version_minor,
-	uint32_t engine_version_patch,
+	std::uint32_t app_version_major,
+	std::uint32_t app_version_minor,
+	std::uint32_t app_version_patch,
+	std::uint32_t engine_version_major,
+	std::uint32_t engine_version_minor,
+	std::uint32_t engine_version_patch,
 	const std::vector<std::string>& extensions,
 	const std::vector<std::string>& validation_layers) noexcept(false)
 {
 	if (extensions.empty())
 	{
 		// Most Vulkan applications use at least one extension
-		spdlog::warn("No extensions specified, are you 100% sure this is intended?");
+		spdlog::warn("No instance extensions specified, are you 100% sure this is intended?");
 	}
 
 	const auto app_version_number = VK_MAKE_VERSION(
@@ -102,9 +102,9 @@ void VulkanInstance::Create(
 
 	VkInstanceCreateInfo instance_info = {};
 	instance_info.pApplicationInfo = &app_info;
-	instance_info.enabledExtensionCount = static_cast<uint32_t>(cstring_extensions.size());
+	instance_info.enabledExtensionCount = static_cast<std::uint32_t>(cstring_extensions.size());
 	instance_info.ppEnabledExtensionNames = cstring_extensions.empty() ? nullptr : cstring_extensions.data();
-	instance_info.enabledLayerCount = static_cast<uint32_t>(cstring_layers.size());
+	instance_info.enabledLayerCount = static_cast<std::uint32_t>(cstring_layers.size());
 	instance_info.ppEnabledLayerNames = cstring_layers.empty() ? nullptr : cstring_layers.data();
 
 	// Create the Vulkan instance
@@ -121,7 +121,7 @@ const VkInstance& VulkanInstance::GetNative() const noexcept(true)
 	return m_instance;
 }
 
-void VulkanInstance::Destroy() noexcept(true)
+void VulkanInstance::Destroy() const noexcept(true)
 {
 	vkDestroyInstance(m_instance, nullptr);
 }

@@ -6,8 +6,6 @@
 
 //////////////////////////////////////////////////////////////////////////
 
-//////////////////////////////////////////////////////////////////////////
-
 // GLM
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/mat4x4.hpp"
@@ -113,48 +111,43 @@ Renderer::Renderer()
 Renderer::~Renderer()
 {
 	// Wait until the GPU finishes the current operation before cleaning-up resources
-	vkDeviceWaitIdle(m_device);
+	vkDeviceWaitIdle(m_device.GetLogicalDeviceNative());
 
 	CleanUpSwapchain();
 
-	vkDestroyDescriptorSetLayout(m_device, m_camera_data_descriptor_set_layout, nullptr);
-	vkDestroyBuffer(m_device, m_vertex_buffer, nullptr);
-	vkFreeMemory(m_device, m_vertex_buffer_memory, nullptr);
+	vkDestroyDescriptorSetLayout(m_device.GetLogicalDeviceNative(), m_camera_data_descriptor_set_layout, nullptr);
+	vkDestroyBuffer(m_device.GetLogicalDeviceNative(), m_vertex_buffer, nullptr);
+	vkFreeMemory(m_device.GetLogicalDeviceNative(), m_vertex_buffer_memory, nullptr);
 
 	for (auto index = 0; index < global_settings::maximum_in_flight_frame_count; ++index)
 	{
-		vkDestroySemaphore(m_device, m_in_flight_frame_image_available_semaphores[index], nullptr);
-		vkDestroySemaphore(m_device, m_in_flight_render_finished_semaphores[index], nullptr);
+		vkDestroySemaphore(m_device.GetLogicalDeviceNative(), m_in_flight_frame_image_available_semaphores[index], nullptr);
+		vkDestroySemaphore(m_device.GetLogicalDeviceNative(), m_in_flight_render_finished_semaphores[index], nullptr);
 	}
 
 	for (auto index = 0; index < global_settings::maximum_in_flight_frame_count; ++index)
 	{
-		vkDestroyFence(m_device, m_in_flight_fences[index], nullptr);
+		vkDestroyFence(m_device.GetLogicalDeviceNative(), m_in_flight_fences[index], nullptr);
 	}
 	
-	vkFreeCommandBuffers(m_device, m_transfer_command_pool, 1, &m_transfer_command_buffer);
-	vkDestroyCommandPool(m_device, m_transfer_command_pool, nullptr);
-	vkDestroyCommandPool(m_device, m_graphics_command_pool, nullptr);
-	vkDestroyDevice(m_device, nullptr);
+	vkDestroyCommandPool(m_device.GetLogicalDeviceNative(), m_graphics_command_pool, nullptr);
+	
+	m_device.Destroy();
 
 #ifdef _DEBUG
 	m_debug_messenger.Destroy(m_instance);
 #endif
 
-	vkDestroySurfaceKHR(m_instance.GetNative(), m_surface, nullptr);
-
+	m_swapchain.DestroySurface(m_instance);
 	m_instance.Destroy();
-
-	glfwDestroyWindow(m_window);
-	glfwTerminate();
 }
 
-void Renderer::Initialize(GLFWwindow* window)
+void Renderer::Initialize(const Window& window)
 {
-	m_window = window;
+	m_window = window.GetNative();
 
 	// Add all extensions required by GLFW
-	uint32_t glfw_extension_count = 0;
+	std::uint32_t glfw_extension_count = 0;
 	auto glfw_extensions = glfwGetRequiredInstanceExtensions(&glfw_extension_count);
 	std::vector<std::string> required_extensions(glfw_extensions, glfw_extensions + glfw_extension_count);
 
@@ -183,9 +176,21 @@ void Renderer::Initialize(GLFWwindow* window)
 	m_debug_messenger.Create(m_instance);
 #endif
 
-	CreateSurface();
-	SelectPhysicalDevice();
-	CreateLogicalDevice();
+	// Create the swapchain surface
+	m_swapchain.CreateSurface(m_instance, window);
+
+	// Create the logical device (physical device is created as well internally)
+	m_device.Create(m_instance, m_swapchain, global_settings::device_extension_names);
+
+	QuerySwapchainSupport();
+
+	if (m_swap_chain_support.formats.empty() ||
+		m_swap_chain_support.present_modes.empty())
+	{
+		spdlog::error("Swapchain support is not adequate.");
+		assert(false);
+	}
+
 	CreateSwapchain();
 	CreateSwapchainImageViews();
 	CreateRenderPass();
@@ -193,7 +198,6 @@ void Renderer::Initialize(GLFWwindow* window)
 	CreateGraphicsPipeline();
 	CreateFramebuffers();
 	CreateCommandPools();
-	CreateTransferCommandBuffer();
 	CreateVertexBuffer();
 	CreateUniformBuffers();
 	CreateDescriptorPool();
@@ -205,12 +209,12 @@ void Renderer::Initialize(GLFWwindow* window)
 void Renderer::Draw()
 {
 	// Wait for the fence of the old frame to be completed
-	vkWaitForFences(m_device, 1, &m_in_flight_fences[m_frame_index], VK_TRUE, std::numeric_limits<uint64_t>::max());
+	vkWaitForFences(m_device.GetLogicalDeviceNative(), 1, &m_in_flight_fences[m_frame_index], VK_TRUE, std::numeric_limits<uint64_t>::max());
 	
 	// Retrieve an image from the swapchain for writing (wait indefinitely for the image to become available)
 	auto result = vkAcquireNextImageKHR(
-		m_device,
-		m_swapchain,
+		m_device.GetLogicalDeviceNative(),
+		m_swapchain_khr,
 		std::numeric_limits<uint64_t>::max(),
 		m_in_flight_frame_image_available_semaphores[m_frame_index],
 		VK_NULL_HANDLE,
@@ -247,10 +251,10 @@ void Renderer::Draw()
 	submit_info.pSignalSemaphores = signal_semaphores;
 
 	// Fence completed, reset its state
-	vkResetFences(m_device, 1, &m_in_flight_fences[m_frame_index]);
+	vkResetFences(m_device.GetLogicalDeviceNative(), 1, &m_in_flight_fences[m_frame_index]);
 
 	// Submit the command queue
-	if (vkQueueSubmit(m_graphics_queue, 1, &submit_info, m_in_flight_fences[m_frame_index]) != VK_SUCCESS)
+	if (vkQueueSubmit(m_device.GetQueueNativeOfType(vk_wrapper::VulkanQueueType::Graphics), 1, &submit_info, m_in_flight_fences[m_frame_index]) != VK_SUCCESS)
 	{
 		spdlog::error("Could not submit the queue for frame #{}.", m_current_swapchain_image_index);
 		return;
@@ -261,11 +265,11 @@ void Renderer::Draw()
 	present_info.waitSemaphoreCount = sizeof(signal_semaphores) / sizeof(signal_semaphores[0]);
 	present_info.pWaitSemaphores = signal_semaphores;
 	present_info.swapchainCount = 1;
-	present_info.pSwapchains = &m_swapchain;
+	present_info.pSwapchains = &m_swapchain_khr;
 	present_info.pImageIndices = &m_current_swapchain_image_index;
 
 	// Request to present an image to the swapchain
-	result = vkQueuePresentKHR(m_present_queue, &present_info);
+	result = vkQueuePresentKHR(m_device.GetQueueNativeOfType(vk_wrapper::VulkanQueueType::Present), &present_info);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebuffer_resized)
 	{
@@ -302,9 +306,9 @@ void Renderer::Update()
 	cam_data.projection_matrix[1][1] *= -1.0f;
 
 	void* data = nullptr;
-	vkMapMemory(m_device, m_camera_ubos_memory[m_current_swapchain_image_index], 0, sizeof(cam_data), 0, &data);
+	vkMapMemory(m_device.GetLogicalDeviceNative(), m_camera_ubos_memory[m_current_swapchain_image_index], 0, sizeof(cam_data), 0, &data);
 	memcpy(data, &cam_data, sizeof(cam_data));
-	vkUnmapMemory(m_device, m_camera_ubos_memory[m_current_swapchain_image_index]);
+	vkUnmapMemory(m_device.GetLogicalDeviceNative(), m_camera_ubos_memory[m_current_swapchain_image_index]);
 }
 
 void Renderer::TriggerFramebufferResized()
@@ -312,328 +316,12 @@ void Renderer::TriggerFramebufferResized()
 	m_framebuffer_resized = true;
 }
 
-void Renderer::CreateSurface()
-{
-	if (glfwCreateWindowSurface(m_instance.GetNative(), m_window, nullptr, &m_surface) != VK_SUCCESS)
-	{
-		spdlog::error("Could not create a window surface.");
-	}
-}
-
-void Renderer::SelectPhysicalDevice()
-{
-	uint32_t physical_device_count = 0;
-	vkEnumeratePhysicalDevices(m_instance.GetNative(), &physical_device_count, nullptr);
-
-	if (physical_device_count == 0)
-	{
-		spdlog::error("No physical device on this computer has Vulkan support.");
-		assert(false);
-	}
-
-	std::vector<VkPhysicalDevice> physical_devices(physical_device_count);
-	vkEnumeratePhysicalDevices(m_instance.GetNative(), &physical_device_count, physical_devices.data());
-
-	std::vector<std::pair<uint32_t, VkPhysicalDevice>> physical_device_scores;
-	physical_device_scores.reserve(physical_device_count);
-
-	// Rate the devices based on their capabilities
-	for (const auto& physical_device : physical_devices)
-	{
-		physical_device_scores.emplace_back(RatePhysicalDeviceSuitability(physical_device), physical_device);
-	}
-
-	// Sort the vector in descending order, the first element will be the best GPU available
-	std::sort(physical_device_scores.begin(), physical_device_scores.end(), [](
-		const std::pair<uint32_t, VkPhysicalDevice>& a,
-		const std::pair<uint32_t, VkPhysicalDevice>& b)
-	{
-		return (a.first > b.first);
-	});
-
-	// Now that the GPUs have been sorted, it is safe to assume that the first element is the best GPU available
-	// However, if the score is zero, it means the GPU lacks certain required features
-	bool found_gpu_with_valid_score = false;
-	for (const auto& pair : physical_device_scores)
-	{
-		// Grab the first GPU with a valid score (scores are sorted already, so this should be the best possible GPU)
-		if (pair.first != 0)
-		{
-			found_gpu_with_valid_score = true;
-			m_physical_device = pair.second;
-		}
-	}
-
-	if (!found_gpu_with_valid_score)
-	{
-		spdlog::error("Could not find a suitable GPU on this system.");
-		assert(false);
-	}
-
-	// Try to find all required queue family indices
-	m_queue_family_indices = FindQueueFamiliesOfSelectedPhysicalDevice();
-
-	// If the device does not support all required queue families, it is not usable at all for this application
-	if (!m_queue_family_indices.AllIndicesFound())
-	{
-		spdlog::error("Not all required queue family indices could be found on this system.");
-		assert(false);
-	}
-
-	// Check whether all required device extensions are supported
-	if (!CheckPhysicalDeviceExtensionSupport())
-	{
-		spdlog::error("Not all required device extensions are available on this system.");
-		assert(false);
-	}
-
-	// Find out what kind of swapchain can be created
-	QuerySwapchainSupport();
-
-	// The swapchain is good enough if we have at least one presentation mode, and a supported image format
-	if (m_swap_chain_support.formats.empty() ||
-		m_swap_chain_support.present_modes.empty())
-	{
-		spdlog::error("Swapchain support is not adequate.");
-		assert(false);
-	}
-
-	VkPhysicalDeviceProperties gpu_properties;
-	VkPhysicalDeviceMemoryProperties gpu_memory_properties;
-	vkGetPhysicalDeviceProperties(m_physical_device, &gpu_properties);
-	vkGetPhysicalDeviceMemoryProperties(m_physical_device, &gpu_memory_properties);
-
-	// List the GPU information
-	spdlog::info("Selected GPU: \"{}\".", gpu_properties.deviceName);
-	for (uint32_t i = 0; i < gpu_memory_properties.memoryHeapCount; ++i)
-	{
-		// Find the heap that represents the VRAM
-		if (gpu_memory_properties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
-			spdlog::info("  > VRAM:\t{}MB", (gpu_memory_properties.memoryHeaps[i].size / 1024 / 1024));
-		else
-			spdlog::info("  > Shared:\t{}MB", (gpu_memory_properties.memoryHeaps[i].size / 1024 / 1024));
-	}
-}
-
-uint32_t Renderer::RatePhysicalDeviceSuitability(const VkPhysicalDevice& physical_device)
-{
-	uint32_t score = 0;
-
-	VkPhysicalDeviceProperties properties			= {};
-	VkPhysicalDeviceFeatures features				= {};
-	VkPhysicalDeviceMemoryProperties mem_properties	= {};
-
-	vkGetPhysicalDeviceProperties(physical_device, &properties);
-	vkGetPhysicalDeviceFeatures(physical_device, &features);
-	vkGetPhysicalDeviceMemoryProperties(physical_device, &mem_properties);
-
-	// A discrete GPU is always preferred, hence the big increase in score
-	if (properties.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
-		score += 1000;
-
-	// More VRAM is better
-	for (uint32_t i = 0; i < mem_properties.memoryHeapCount; ++i)
-	{
-		// Find the heap that represents the VRAM
-		if (mem_properties.memoryHeaps[i].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT)
-			score += static_cast<uint32_t>(mem_properties.memoryHeaps[i].size / 1024 / 1024);
-	}
-
-	// #TODO: Add any additional checks (e.g. VK_NV_ray_tracing support, maximum texture size, etc.)
-	
-	// #TODO: If a REQUIRED feature is not present, return 0 (a score of 0 will not be accepted by the application)
-
-	return score;
-}
-
-QueueFamilyIndices Renderer::FindQueueFamiliesOfSelectedPhysicalDevice()
-{
-	QueueFamilyIndices indices;
-
-	uint32_t queue_family_count = 0;
-	vkGetPhysicalDeviceQueueFamilyProperties(m_physical_device, &queue_family_count, nullptr);
-
-	std::vector<VkQueueFamilyProperties> queue_families(queue_family_count);
-	vkGetPhysicalDeviceQueueFamilyProperties(m_physical_device, &queue_family_count, queue_families.data());
-
-	if (queue_family_count == 0)
-		spdlog::error("Could not find any queue families using this physical device.");
-
-	uint32_t index = 0;
-	for (const auto& queue_family : queue_families)
-	{
-		// Look for a dedicated transfer queue family
-		if ((queue_family.queueFlags & VK_QUEUE_TRANSFER_BIT)		&&
-			(queue_family.queueFlags & VK_QUEUE_GRAPHICS_BIT) == 0	&&
-			(queue_family.queueFlags & VK_QUEUE_COMPUTE_BIT) == 0)
-		{
-			indices.transfer_family_index = { 0, 0 };
-			indices.transfer_family_index->first = index;
-			indices.transfer_family_index->second = queue_family.queueCount;
-			continue;
-		}
-
-		// Does this queue family support presenting?
-		VkBool32 present_supported = true;
-		vkGetPhysicalDeviceSurfaceSupportKHR(m_physical_device, index, m_surface, &present_supported);
-
-		// Look for a queue family that supports present operations
-		if (present_supported)
-		{
-			indices.present_family_index = { 0, 0 };
-			indices.present_family_index->first = index;
-			indices.present_family_index->second = queue_family.queueCount;
-		}
-
-		// Look for a queue family that supports graphics operations
-		if (queue_family.queueFlags & VK_QUEUE_GRAPHICS_BIT)
-		{
-			indices.graphics_family_index = { 0, 0 };
-			indices.graphics_family_index->first = index;
-			indices.graphics_family_index->second = queue_family.queueCount;
-		}
-
-		// Stop searching once all queue family indices have been found
-		if (indices.AllIndicesFound())
-			break;
-
-		++index;
-	}
-	
-	return indices;
-}
-
-void Renderer::CreateLogicalDevice()
-{
-	// Eliminate duplicate family indices by using the set (guarantees unique values)
-	std::set<uint32_t> unique_family_indices =
-	{
-		m_queue_family_indices.graphics_family_index->first,
-		m_queue_family_indices.present_family_index->first
-	};
-	
-	std::vector<VkDeviceQueueCreateInfo> queue_create_infos;
-
-	for (const auto& unique_index : unique_family_indices)
-	{
-		VkDeviceQueueCreateInfo queue_create_info = {};
-		queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-		queue_create_info.queueFamilyIndex = unique_index;
-
-		// If there is no dedicated transfer queue and the graphics family has
-		// more than one queue, use two queues from the graphics family instead
-		if (m_queue_family_indices.graphics_family_index.value().second >= 2 &&
-			unique_index == m_queue_family_indices.graphics_family_index->first)
-		{
-			float queue_priorities[2] = { 1.0f, 1.0f };
-
-			// A graphics and a transfer queue
-			queue_create_info.queueCount = 2;
-			queue_create_info.pQueuePriorities = queue_priorities;
-		}
-		else
-		{
-			float queue_priority = 1.0f;
-
-			// Just a single queue
-			queue_create_info.queueCount = 1;
-			queue_create_info.pQueuePriorities = &queue_priority;
-		}
-
-		queue_create_infos.push_back(queue_create_info);
-	}
-
-	// #TODO: Add device features here once the application needs it
-	VkPhysicalDeviceFeatures device_features = {};
-
-	VkDeviceCreateInfo device_create_info = {};
-	device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-	device_create_info.pQueueCreateInfos = queue_create_infos.data();
-	device_create_info.queueCreateInfoCount = static_cast<uint32_t>(queue_create_infos.size());
-	device_create_info.pEnabledFeatures = &device_features;
-	device_create_info.enabledExtensionCount = static_cast<uint32_t>(global_settings::device_extension_names.size());
-	device_create_info.ppEnabledExtensionNames = global_settings::device_extension_names.data();
-	
-	if (vkCreateDevice(m_physical_device, &device_create_info, nullptr, &m_device) != VK_SUCCESS)
-		spdlog::error("Could not create a logical device.");
-
-	spdlog::info("Successfully created a logical device.");
-
-	vkGetDeviceQueue(m_device, m_queue_family_indices.graphics_family_index->first, 0, &m_graphics_queue);
-	vkGetDeviceQueue(m_device, m_queue_family_indices.present_family_index->first, 0, &m_present_queue);
-	
-	if (!m_queue_family_indices.transfer_family_index.has_value() &&
-		m_queue_family_indices.graphics_family_index.value().second >= 2)
-	{
-		// If a there is no dedicated transfer queue, use a second graphics queue instead
-		vkGetDeviceQueue(m_device, m_queue_family_indices.graphics_family_index->first, 1, &m_transfer_queue);
-
-		spdlog::warn("Could not find a dedicated transfer queue, using a second graphics queue instead...");
-	}
-	else if (m_queue_family_indices.graphics_family_index.value().second == 1)
-	{
-		// Only one queue in the graphics family is available, use the graphics queue as a transfer queue
-		vkGetDeviceQueue(m_device, m_queue_family_indices.graphics_family_index->first, 0, &m_transfer_queue);
-	
-		spdlog::warn("Could not find a dedicated transfer queue or a second graphics queue, using the main graphics queue instead...");
-	}
-	else
-	{
-		// A dedicated transfer queue is available
-		vkGetDeviceQueue(m_device, m_queue_family_indices.transfer_family_index->first, 0, &m_transfer_queue);
-	}
-}
-
-bool Renderer::CheckPhysicalDeviceExtensionSupport()
-{
-	uint32_t extension_count = 0;
-	vkEnumerateDeviceExtensionProperties(m_physical_device, nullptr, &extension_count, nullptr);
-
-	if (extension_count == 0)
-	{
-		spdlog::error("Could not find any extensions on this system.");
-		return false;
-	}
-
-	std::vector<VkExtensionProperties> all_extensions(extension_count);
-	vkEnumerateDeviceExtensionProperties(m_physical_device, nullptr, &extension_count, all_extensions.data());
-
-	// Log all available device extensions
-	spdlog::info("Found the following available device extensions:");
-	for (const auto& extension : all_extensions)
-	{
-		spdlog::info("  > {}", extension.extensionName);
-	}
-
-	for (const auto& required_extension : global_settings::device_extension_names)
-	{
-		bool extension_found = false;
-
-		for (const auto& extension : all_extensions)
-		{
-			if (strcmp(required_extension, extension.extensionName) == 0)
-			{
-				extension_found = true;
-				break;
-			}
-		}
-
-		if (!extension_found)
-		{
-			spdlog::error("The extension \"{}\" is not available, but it is required by the application.", required_extension);
-			return false;
-		}
-	}
-
-	return true;
-}
-
 void Renderer::QuerySwapchainSupport()
 {
-	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physical_device, m_surface, &m_swap_chain_support.capabilities);
+	vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_device.GetPhysicalDeviceNative(), m_swapchain.GetSurfaceNative(), &m_swap_chain_support.capabilities);
 
-	uint32_t format_count = 0;
-	vkGetPhysicalDeviceSurfaceFormatsKHR(m_physical_device, m_surface, &format_count, nullptr);
+	std::uint32_t format_count = 0;
+	vkGetPhysicalDeviceSurfaceFormatsKHR(m_device.GetPhysicalDeviceNative(), m_swapchain.GetSurfaceNative(), &format_count, nullptr);
 
 	if (format_count == 0)
 	{
@@ -642,10 +330,10 @@ void Renderer::QuerySwapchainSupport()
 	}
 
 	m_swap_chain_support.formats.resize(format_count);
-	vkGetPhysicalDeviceSurfaceFormatsKHR(m_physical_device, m_surface, &format_count, m_swap_chain_support.formats.data());
+	vkGetPhysicalDeviceSurfaceFormatsKHR(m_device.GetPhysicalDeviceNative(), m_swapchain.GetSurfaceNative(), &format_count, m_swap_chain_support.formats.data());
 
-	uint32_t present_mode_count = 0;
-	vkGetPhysicalDeviceSurfacePresentModesKHR(m_physical_device, m_surface, &present_mode_count, nullptr);
+	std::uint32_t present_mode_count = 0;
+	vkGetPhysicalDeviceSurfacePresentModesKHR(m_device.GetPhysicalDeviceNative(), m_swapchain.GetSurfaceNative(), &present_mode_count, nullptr);
 	
 	if (present_mode_count == 0)
 	{
@@ -654,7 +342,7 @@ void Renderer::QuerySwapchainSupport()
 	}
 
 	m_swap_chain_support.present_modes.resize(present_mode_count);
-	vkGetPhysicalDeviceSurfacePresentModesKHR(m_physical_device, m_surface, &present_mode_count, m_swap_chain_support.present_modes.data());
+	vkGetPhysicalDeviceSurfacePresentModesKHR(m_device.GetPhysicalDeviceNative(), m_swapchain.GetSurfaceNative(), &present_mode_count, m_swap_chain_support.present_modes.data());
 }
 
 VkSurfaceFormatKHR Renderer::ChooseSwapchainSurfaceFormat()
@@ -698,13 +386,13 @@ VkExtent2D Renderer::ChooseSwapchainExtent()
 	const auto& capabilities = m_swap_chain_support.capabilities;
 
 	// Use the default extent
-	if (capabilities.currentExtent.width != std::numeric_limits<uint32_t>::max())
+	if (capabilities.currentExtent.width != std::numeric_limits<std::uint32_t>::max())
 		return capabilities.currentExtent;
 	
 	// Use the resolution that matches the window within the given extents the best
 	int width, height;
 	glfwGetFramebufferSize(m_window, &width, &height);
-	VkExtent2D extent = { static_cast<uint32_t>(width), static_cast<uint32_t>(height) };
+	VkExtent2D extent = { static_cast<std::uint32_t>(width), static_cast<std::uint32_t>(height) };
 
 	extent.width = std::max(capabilities.minImageExtent.width, std::min(capabilities.maxImageExtent.width, extent.width));
 	extent.height = std::max(capabilities.minImageExtent.height, std::min(capabilities.maxImageExtent.height, extent.height));
@@ -719,7 +407,7 @@ void Renderer::CreateSwapchain()
 	auto surface_present_mode	= ChooseSwapchainSurfacePresentMode();
 
 	// Make sure we have at least one more image than the recommended amount (to avoid having to wait on internal operations)
-	uint32_t image_count = m_swap_chain_support.capabilities.minImageCount + 1;
+	std::uint32_t image_count = m_swap_chain_support.capabilities.minImageCount + 1;
 
 	// Do not exceed the maximum allowed swapchain image count
 	if (m_swap_chain_support.capabilities.maxImageCount > 0 &&
@@ -728,16 +416,18 @@ void Renderer::CreateSwapchain()
 		image_count = m_swap_chain_support.capabilities.maxImageCount;
 	}
 
+	auto queue_family_indices = m_device.GetQueueFamilyIndices();
+
 	// Queue families grouped in an array for easy access when filling out the swapchain create structure
-	uint32_t queue_families[] =
+	std::uint32_t queue_families[] =
 	{
-		m_queue_family_indices.graphics_family_index->first,
-		m_queue_family_indices.present_family_index->first
+		queue_family_indices.graphics_family_index->first,
+		queue_family_indices.present_family_index->first
 	};
 
 	VkSwapchainCreateInfoKHR create_info = {};
 	create_info.sType					= VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
-	create_info.surface					= m_surface;
+	create_info.surface					= m_swapchain.GetSurfaceNative();
 	create_info.minImageCount			= image_count;
 	create_info.imageFormat				= surface_format.format;
 	create_info.imageColorSpace			= surface_format.colorSpace;
@@ -750,10 +440,10 @@ void Renderer::CreateSwapchain()
 	create_info.clipped					= VK_TRUE;
 	create_info.oldSwapchain			= VK_NULL_HANDLE;
 
-	if (m_queue_family_indices.graphics_family_index.value() != m_queue_family_indices.present_family_index.value())
+	if (queue_family_indices.graphics_family_index.value() != queue_family_indices.present_family_index.value())
 	{
 		create_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-		create_info.queueFamilyIndexCount = sizeof(queue_families) / sizeof(uint32_t);
+		create_info.queueFamilyIndexCount = sizeof(queue_families) / sizeof(std::uint32_t);
 		create_info.pQueueFamilyIndices = queue_families;
 	}
 	else
@@ -761,7 +451,7 @@ void Renderer::CreateSwapchain()
 		create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
 	}
 
-	if (vkCreateSwapchainKHR(m_device, &create_info, nullptr, &m_swapchain) != VK_SUCCESS)
+	if (vkCreateSwapchainKHR(m_device.GetLogicalDeviceNative(), &create_info, nullptr, &m_swapchain_khr) != VK_SUCCESS)
 	{
 		spdlog::error("Could not create a swapchain.");
 	}
@@ -769,9 +459,9 @@ void Renderer::CreateSwapchain()
 	spdlog::info("Successfully created a swapchain.");
 
 	// Get handles to the images in the swapchain
-	vkGetSwapchainImagesKHR(m_device, m_swapchain, &image_count, nullptr);
+	vkGetSwapchainImagesKHR(m_device.GetLogicalDeviceNative(), m_swapchain_khr, &image_count, nullptr);
 	m_swapchain_images.resize(image_count);
-	vkGetSwapchainImagesKHR(m_device, m_swapchain, &image_count, m_swapchain_images.data());
+	vkGetSwapchainImagesKHR(m_device.GetLogicalDeviceNative(), m_swapchain_khr, &image_count, m_swapchain_images.data());
 
 	// Store the format and extent of the swapchain for future use
 	m_swapchain_format = surface_format.format;
@@ -782,7 +472,7 @@ void Renderer::CreateSwapchainImageViews()
 {
 	m_swapchain_image_views.resize(m_swapchain_images.size());
 
-	uint32_t index = 0;
+	std::uint32_t index = 0;
 	for (const auto& image : m_swapchain_images)
 	{
 		VkImageViewCreateInfo image_view_create_info = {};
@@ -803,7 +493,7 @@ void Renderer::CreateSwapchainImageViews()
 		image_view_create_info.subresourceRange.baseArrayLayer = 0;
 		image_view_create_info.subresourceRange.layerCount = 1;
 
-		if (vkCreateImageView(m_device, &image_view_create_info, nullptr, &m_swapchain_image_views[index]) != VK_SUCCESS)
+		if (vkCreateImageView(m_device.GetLogicalDeviceNative(), &image_view_create_info, nullptr, &m_swapchain_image_views[index]) != VK_SUCCESS)
 		{
 			spdlog::error("Could not create an image view for the swapchain image.");
 			assert(false);
@@ -850,7 +540,7 @@ void Renderer::CreateGraphicsPipeline()
 	vertex_input_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
 	vertex_input_state.vertexBindingDescriptionCount = 1;
 	vertex_input_state.pVertexBindingDescriptions = &binding_description;
-	vertex_input_state.vertexAttributeDescriptionCount = static_cast<uint32_t>(attribute_descriptions.size());
+	vertex_input_state.vertexAttributeDescriptionCount = static_cast<std::uint32_t>(attribute_descriptions.size());
 	vertex_input_state.pVertexAttributeDescriptions = attribute_descriptions.data();
 
 	// Describe geometry and if primitive restart should be enabled
@@ -919,7 +609,7 @@ void Renderer::CreateGraphicsPipeline()
 	pipeline_layout_info.setLayoutCount = 1;
 	pipeline_layout_info.pSetLayouts = &m_camera_data_descriptor_set_layout;
 
-	if (vkCreatePipelineLayout(m_device, &pipeline_layout_info, nullptr, &m_pipeline_layout) != VK_SUCCESS)
+	if (vkCreatePipelineLayout(m_device.GetLogicalDeviceNative(), &pipeline_layout_info, nullptr, &m_pipeline_layout) != VK_SUCCESS)
 		spdlog::error("Could not create a pipeline layout.");
 
 	spdlog::info("Successfully created a pipeline layout.");
@@ -939,15 +629,15 @@ void Renderer::CreateGraphicsPipeline()
 	pipeline_info.renderPass = m_render_pass;
 	pipeline_info.subpass = 0;
 
-	if (vkCreateGraphicsPipelines(m_device, VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &m_graphics_pipeline) != VK_SUCCESS)
+	if (vkCreateGraphicsPipelines(m_device.GetLogicalDeviceNative(), VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &m_graphics_pipeline) != VK_SUCCESS)
 		spdlog::error("Could not create a graphics pipeline.");
 	else
 		spdlog::info("Successfully created a graphics pipeline.");
 
 	// Get rid of the shader modules, as they are no longer needed after the
 	// pipeline has been created
-	vkDestroyShaderModule(m_device, vertex_shader_module, nullptr);
-	vkDestroyShaderModule(m_device, fragment_shader_module, nullptr);
+	vkDestroyShaderModule(m_device.GetLogicalDeviceNative(), vertex_shader_module, nullptr);
+	vkDestroyShaderModule(m_device.GetLogicalDeviceNative(), fragment_shader_module, nullptr);
 }
 
 VkShaderModule Renderer::CreateShaderModule(const std::vector<char>& spirv)
@@ -956,9 +646,9 @@ VkShaderModule Renderer::CreateShaderModule(const std::vector<char>& spirv)
 	VkShaderModuleCreateInfo create_info = {};
 	create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
 	create_info.codeSize = spirv.size();
-	create_info.pCode = reinterpret_cast<const uint32_t*>(spirv.data());
+	create_info.pCode = reinterpret_cast<const std::uint32_t*>(spirv.data());
 
-	if (vkCreateShaderModule(m_device, &create_info, nullptr, &shader_module) != VK_SUCCESS)
+	if (vkCreateShaderModule(m_device.GetLogicalDeviceNative(), &create_info, nullptr, &shader_module) != VK_SUCCESS)
 	{
 		spdlog::error("Could not create a shader module.");
 		return VK_NULL_HANDLE;
@@ -1007,7 +697,7 @@ void Renderer::CreateRenderPass()
 	render_pass_info.dependencyCount = 1;
 	render_pass_info.pDependencies = &subpass_dependency;
 
-	if (vkCreateRenderPass(m_device, &render_pass_info, nullptr, &m_render_pass) != VK_SUCCESS)
+	if (vkCreateRenderPass(m_device.GetLogicalDeviceNative(), &render_pass_info, nullptr, &m_render_pass) != VK_SUCCESS)
 	{
 		spdlog::error("Could not create a render pass.");
 		return;
@@ -1022,7 +712,7 @@ void Renderer::CreateFramebuffers()
 	m_swapchain_framebuffers.resize(m_swapchain_image_views.size());
 
 	// Index for the for-loop
-	uint32_t index = 0;
+	std::uint32_t index = 0;
 
 	// Create a new framebuffer for each image view
 	for (const auto& image_view : m_swapchain_image_views)
@@ -1036,7 +726,7 @@ void Renderer::CreateFramebuffers()
 		framebuffer_info.height = m_swapchain_extent.height;
 		framebuffer_info.layers = 1;
 
-		if (vkCreateFramebuffer(m_device, &framebuffer_info, nullptr, &m_swapchain_framebuffers[index]) != VK_SUCCESS)
+		if (vkCreateFramebuffer(m_device.GetLogicalDeviceNative(), &framebuffer_info, nullptr, &m_swapchain_framebuffers[index]) != VK_SUCCESS)
 			spdlog::error("Could not create a framebuffer for the swapchain image view.");
 
 		++index;
@@ -1047,20 +737,13 @@ void Renderer::CreateFramebuffers()
 
 void Renderer::CreateCommandPools()
 {
+	auto queue_family_indices = m_device.GetQueueFamilyIndices();
+
 	VkCommandPoolCreateInfo graphics_pool_info = {};
 	graphics_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	graphics_pool_info.queueFamilyIndex = m_queue_family_indices.graphics_family_index->first;
+	graphics_pool_info.queueFamilyIndex = queue_family_indices.graphics_family_index->first;
 
-	VkCommandPoolCreateInfo transfer_pool_info = {};
-	transfer_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-
-	// Choose the correct queue family index if there is a dedicated transfer queue on this system
-	if (m_queue_family_indices.transfer_family_index.has_value())
-		transfer_pool_info.queueFamilyIndex = m_queue_family_indices.transfer_family_index->first;
-	else
-		transfer_pool_info.queueFamilyIndex = m_queue_family_indices.graphics_family_index->first;
-
-	if (vkCreateCommandPool(m_device, &graphics_pool_info, nullptr, &m_graphics_command_pool) != VK_SUCCESS)
+	if (vkCreateCommandPool(m_device.GetLogicalDeviceNative(), &graphics_pool_info, nullptr, &m_graphics_command_pool) != VK_SUCCESS)
 	{
 		spdlog::error("Could not create a graphics command pool.");
 		return;
@@ -1068,15 +751,6 @@ void Renderer::CreateCommandPools()
 	else
 	{
 		spdlog::info("Successfully created a graphics command pool.");
-	}
-
-	if (vkCreateCommandPool(m_device, &transfer_pool_info, nullptr, &m_transfer_command_pool) != VK_SUCCESS)
-	{
-		spdlog::error("Could not create a transfer command pool.");
-	}
-	else
-	{
-		spdlog::info("Successfully created a transfer command pool.");
 	}
 }
 
@@ -1088,11 +762,11 @@ void Renderer::CreateCommandBuffers()
 	VkCommandBufferAllocateInfo graphics_command_buffer_allocate_info = {};
 	graphics_command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	graphics_command_buffer_allocate_info.commandPool = m_graphics_command_pool;
-	graphics_command_buffer_allocate_info.commandBufferCount = static_cast<uint32_t>(m_command_buffers.size());
+	graphics_command_buffer_allocate_info.commandBufferCount = static_cast<std::uint32_t>(m_command_buffers.size());
 	graphics_command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
 
 	// Allocate the command buffers
-	if (vkAllocateCommandBuffers(m_device, &graphics_command_buffer_allocate_info, m_command_buffers.data()) != VK_SUCCESS)
+	if (vkAllocateCommandBuffers(m_device.GetLogicalDeviceNative(), &graphics_command_buffer_allocate_info, m_command_buffers.data()) != VK_SUCCESS)
 	{
 		spdlog::error("Could not allocate command buffers.");
 		return;
@@ -1101,7 +775,7 @@ void Renderer::CreateCommandBuffers()
 	spdlog::info("Successfully allocated command buffers.");
 
 	// Index tracking for the range-based for-loop
-	uint32_t index = 0;
+	std::uint32_t index = 0;
 
 	// Record commands into command buffers
 	for (const auto& command_buffer : m_command_buffers)
@@ -1153,7 +827,7 @@ void Renderer::CreateCommandBuffers()
 			nullptr);
 
 		// Draw the triangle using hard-coded shader vertices
-		vkCmdDraw(m_command_buffers[index], static_cast<uint32_t>(vertices.size()), 1, 0, 0);
+		vkCmdDraw(m_command_buffers[index], static_cast<std::uint32_t>(vertices.size()), 1, 0, 0);
 
 		// End the render pass
 		vkCmdEndRenderPass(m_command_buffers[index]);
@@ -1185,8 +859,8 @@ void Renderer::CreateSynchronizationObjects()
 	// Create all required semaphores
 	for (auto index = 0; index < global_settings::maximum_in_flight_frame_count; ++index)
 	{
-		if (vkCreateSemaphore(m_device, &semaphore_create_info, nullptr, &m_in_flight_frame_image_available_semaphores[index]) != VK_SUCCESS ||
-			vkCreateSemaphore(m_device, &semaphore_create_info, nullptr, &m_in_flight_render_finished_semaphores[index]) != VK_SUCCESS)
+		if (vkCreateSemaphore(m_device.GetLogicalDeviceNative(), &semaphore_create_info, nullptr, &m_in_flight_frame_image_available_semaphores[index]) != VK_SUCCESS ||
+			vkCreateSemaphore(m_device.GetLogicalDeviceNative(), &semaphore_create_info, nullptr, &m_in_flight_render_finished_semaphores[index]) != VK_SUCCESS)
 		{
 			spdlog::error("Could not create one or both semaphores.");
 			return;
@@ -1196,7 +870,7 @@ void Renderer::CreateSynchronizationObjects()
 	// Create all required fences
 	for (auto index = 0; index < global_settings::maximum_in_flight_frame_count; ++index)
 	{
-		if (vkCreateFence(m_device, &fence_create_info, nullptr, &m_in_flight_fences[index]) != VK_SUCCESS)
+		if (vkCreateFence(m_device.GetLogicalDeviceNative(), &fence_create_info, nullptr, &m_in_flight_fences[index]) != VK_SUCCESS)
 		{
 			spdlog::error("Could not create a fence.");
 			return;
@@ -1216,7 +890,7 @@ void Renderer::RecreateSwapchain()
 	}
 
 	// Wait until the GPU finishes and clean-up the, now outdated, swapchain
-	vkDeviceWaitIdle(m_device);
+	vkDeviceWaitIdle(m_device.GetLogicalDeviceNative());
 	CleanUpSwapchain();
 
 	// Create a new swapchain
@@ -1238,40 +912,26 @@ void Renderer::CleanUpSwapchain()
 {
 	for (auto index = 0; index < m_swapchain_images.size(); ++index)
 	{
-		vkDestroyFramebuffer(m_device, m_swapchain_framebuffers[index], nullptr);
-		vkDestroyBuffer(m_device, m_camera_ubos[index], nullptr);
-		vkFreeMemory(m_device, m_camera_ubos_memory[index], nullptr);
+		vkDestroyFramebuffer(m_device.GetLogicalDeviceNative(), m_swapchain_framebuffers[index], nullptr);
+		vkDestroyBuffer(m_device.GetLogicalDeviceNative(), m_camera_ubos[index], nullptr);
+		vkFreeMemory(m_device.GetLogicalDeviceNative(), m_camera_ubos_memory[index], nullptr);
 	}
 
-	vkDestroyDescriptorPool(m_device, m_descriptor_pool, nullptr);
+	vkDestroyDescriptorPool(m_device.GetLogicalDeviceNative(), m_descriptor_pool, nullptr);
 
 	// No need to recreate the pool, freeing the command buffers is enough
-	vkFreeCommandBuffers(m_device, m_graphics_command_pool, static_cast<uint32_t>(m_command_buffers.size()), m_command_buffers.data());
+	vkFreeCommandBuffers(m_device.GetLogicalDeviceNative(), m_graphics_command_pool, static_cast<std::uint32_t>(m_command_buffers.size()), m_command_buffers.data());
 
-	vkDestroyPipeline(m_device, m_graphics_pipeline, nullptr);
-	vkDestroyPipelineLayout(m_device, m_pipeline_layout, nullptr);
-	vkDestroyRenderPass(m_device, m_render_pass, nullptr);
+	vkDestroyPipeline(m_device.GetLogicalDeviceNative(), m_graphics_pipeline, nullptr);
+	vkDestroyPipelineLayout(m_device.GetLogicalDeviceNative(), m_pipeline_layout, nullptr);
+	vkDestroyRenderPass(m_device.GetLogicalDeviceNative(), m_render_pass, nullptr);
 
 	for (const auto& image_view : m_swapchain_image_views)
 	{
-		vkDestroyImageView(m_device, image_view, nullptr);
+		vkDestroyImageView(m_device.GetLogicalDeviceNative(), image_view, nullptr);
 	}
 
-	vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
-}
-
-void Renderer::CreateTransferCommandBuffer()
-{
-	VkCommandBufferAllocateInfo transfer_command_buffer_allocate_info = {};
-	transfer_command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	transfer_command_buffer_allocate_info.commandPool = m_transfer_command_pool;
-	transfer_command_buffer_allocate_info.commandBufferCount = 1;
-	transfer_command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-
-	if (vkAllocateCommandBuffers(m_device, &transfer_command_buffer_allocate_info, &m_transfer_command_buffer) != VK_SUCCESS)
-		spdlog::error("Could not allocate a transfer command buffer.");
-	else
-		spdlog::info("Successfully allocated a transfer command buffer.");
+	vkDestroySwapchainKHR(m_device.GetLogicalDeviceNative(), m_swapchain_khr, nullptr);
 }
 
 void Renderer::CreateVertexBuffer()
@@ -1288,16 +948,15 @@ void Renderer::CreateVertexBuffer()
 		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 		staging_buffer,
 		staging_buffer_memory,
-		m_queue_family_indices,
-		m_device,
-		m_physical_device);
+		m_device.GetLogicalDeviceNative(),
+		m_device.GetPhysicalDeviceNative());
 
 	void* data = nullptr;
 	
 	// Copy the data to a staging buffer
-	vkMapMemory(m_device, staging_buffer_memory, 0, buffer_size, 0, &data);
+	vkMapMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory, 0, buffer_size, 0, &data);
 	memcpy(data, vertices.data(), static_cast<size_t>(buffer_size));
-	vkUnmapMemory(m_device, staging_buffer_memory);
+	vkUnmapMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory);
 
 	// Create a device local buffer to hold the vertex data in GPU memory
 	CreateBuffer(
@@ -1306,21 +965,21 @@ void Renderer::CreateVertexBuffer()
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 		m_vertex_buffer,
 		m_vertex_buffer_memory,
-		m_queue_family_indices,
-		m_device,
-		m_physical_device);
+		m_device.GetLogicalDeviceNative(),
+		m_device.GetPhysicalDeviceNative());
 
 	// Copy the staging buffer to the GPU visible buffer
 	CopyStagingBufferToDeviceLocalBuffer(
+		m_device.GetLogicalDeviceNative(),
 		staging_buffer,
 		m_vertex_buffer,
 		buffer_size,
-		m_transfer_command_buffer,
-		m_transfer_queue);
+		m_device.GetQueueNativeOfType(vk_wrapper::VulkanQueueType::Graphics),
+		m_graphics_command_pool);
 
 	// Clean up the staging buffer since it is no longer needed
-	vkDestroyBuffer(m_device, staging_buffer, nullptr);
-	vkFreeMemory(m_device, staging_buffer_memory, nullptr);
+	vkDestroyBuffer(m_device.GetLogicalDeviceNative(), staging_buffer, nullptr);
+	vkFreeMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory, nullptr);
 }
 
 void Renderer::CreateUniformBuffers()
@@ -1339,9 +998,8 @@ void Renderer::CreateUniformBuffers()
 			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
 			m_camera_ubos[index],
 			m_camera_ubos_memory[index],
-			m_queue_family_indices,
-			m_device,
-			m_physical_device);
+			m_device.GetLogicalDeviceNative(),
+			m_device.GetPhysicalDeviceNative());
 	}
 }
 
@@ -1349,15 +1007,15 @@ void Renderer::CreateDescriptorPool()
 {
 	VkDescriptorPoolSize descriptor_pool_size = {};
 	descriptor_pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	descriptor_pool_size.descriptorCount = static_cast<uint32_t>(m_swapchain_images.size());
+	descriptor_pool_size.descriptorCount = static_cast<std::uint32_t>(m_swapchain_images.size());
 
 	VkDescriptorPoolCreateInfo pool_create_info = {};
 	pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
 	pool_create_info.poolSizeCount = 1;
 	pool_create_info.pPoolSizes = &descriptor_pool_size;
-	pool_create_info.maxSets = static_cast<uint32_t>(m_swapchain_images.size());
+	pool_create_info.maxSets = static_cast<std::uint32_t>(m_swapchain_images.size());
 
-	if (vkCreateDescriptorPool(m_device, &pool_create_info, nullptr, &m_descriptor_pool) != VK_SUCCESS)
+	if (vkCreateDescriptorPool(m_device.GetLogicalDeviceNative(), &pool_create_info, nullptr, &m_descriptor_pool) != VK_SUCCESS)
 	{
 		spdlog::error("Could not create a descriptor pool.");
 		return;
@@ -1379,7 +1037,7 @@ void Renderer::CreateDescriptorSetLayout()
 	layout_create_info.bindingCount = 1;
 	layout_create_info.pBindings = &camera_data_layout_binding;
 
-	if (vkCreateDescriptorSetLayout(m_device, &layout_create_info, nullptr, &m_camera_data_descriptor_set_layout) != VK_SUCCESS)
+	if (vkCreateDescriptorSetLayout(m_device.GetLogicalDeviceNative(), &layout_create_info, nullptr, &m_camera_data_descriptor_set_layout) != VK_SUCCESS)
 		spdlog::error("Could not create a descriptor set layout for the camera data.");
 }
 
@@ -1390,11 +1048,11 @@ void Renderer::CreateDescriptorSets()
 	VkDescriptorSetAllocateInfo alloc_info = {};
 	alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
 	alloc_info.descriptorPool = m_descriptor_pool;
-	alloc_info.descriptorSetCount = static_cast<uint32_t>(m_swapchain_images.size());
+	alloc_info.descriptorSetCount = static_cast<std::uint32_t>(m_swapchain_images.size());
 	alloc_info.pSetLayouts = layouts.data();
 
 	m_descriptor_sets.resize(m_swapchain_images.size());
-	if (vkAllocateDescriptorSets(m_device, &alloc_info, m_descriptor_sets.data()) != VK_SUCCESS)
+	if (vkAllocateDescriptorSets(m_device.GetLogicalDeviceNative(), &alloc_info, m_descriptor_sets.data()) != VK_SUCCESS)
 	{
 		spdlog::error("Could not allocate descriptor sets.");
 		return;
@@ -1419,19 +1077,19 @@ void Renderer::CreateDescriptorSets()
 		descriptor_write.descriptorCount = 1;
 		descriptor_write.pBufferInfo = &buffer_info;
 
-		vkUpdateDescriptorSets(m_device, 1, &descriptor_write, 0, nullptr);
+		vkUpdateDescriptorSets(m_device.GetLogicalDeviceNative(), 1, &descriptor_write, 0, nullptr);
 	}
 }
 
-uint32_t Renderer::FindMemoryType(
-	uint32_t type_filter,
+std::uint32_t Renderer::FindMemoryType(
+	std::uint32_t type_filter,
 	VkMemoryPropertyFlags properties,
 	const VkPhysicalDevice& physical_device)
 {
 	VkPhysicalDeviceMemoryProperties memory_properties;
 	vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
 
-	for (uint32_t index = 0; index < memory_properties.memoryTypeCount; ++index)
+	for (std::uint32_t index = 0; index < memory_properties.memoryTypeCount; ++index)
 	{
 		// Iterate through the types and check when the "type_filter" bit field is set to 1
 		// Also check whether all required properties are supported
@@ -1491,7 +1149,6 @@ void Renderer::CreateBuffer(
 	VkMemoryPropertyFlags properties,
 	VkBuffer& buffer,
 	VkDeviceMemory& buffer_memory,
-	const QueueFamilyIndices& queue_family_indices,
 	const VkDevice& device,
 	const VkPhysicalDevice physical_device)
 {
@@ -1499,27 +1156,7 @@ void Renderer::CreateBuffer(
 	buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
 	buffer_info.size = size;
 	buffer_info.usage = usage;
-
-	if (queue_family_indices.transfer_family_index.has_value())
-	{
-		// Use a dedicated transfer queue
-		uint32_t queue_indices[] =
-		{
-			queue_family_indices.graphics_family_index->first,
-			queue_family_indices.transfer_family_index->first
-		};
-
-		buffer_info.sharingMode = VK_SHARING_MODE_CONCURRENT;
-		buffer_info.queueFamilyIndexCount = sizeof(queue_indices) / sizeof(queue_indices[0]);
-		buffer_info.pQueueFamilyIndices = queue_indices;
-	}
-	else
-	{
-		// Use the graphics queue as a transfer queue as well
-		buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-		buffer_info.queueFamilyIndexCount = 1;
-		buffer_info.pQueueFamilyIndices = &queue_family_indices.graphics_family_index->first;
-	}
+	buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 	if (vkCreateBuffer(device, &buffer_info, nullptr, &buffer) != VK_SUCCESS)
 	{
@@ -1549,35 +1186,49 @@ void Renderer::CreateBuffer(
 }
 
 void Renderer::CopyStagingBufferToDeviceLocalBuffer(
+	const VkDevice& device,
 	const VkBuffer& source,
 	const VkBuffer& destination,
 	VkDeviceSize size,
-	const VkCommandBuffer& transfer_command_buffer,
-	const VkQueue& transfer_queue)
+	const VkQueue& transfer_queue,
+	const VkCommandPool pool)
 {
+	// Not the best way to do this, needs refactoring
+	// #TODO: REFACTOR THE COMMAND BUFFERS TO USE A SECOND GRAPHICS QUEUE FOR TRANSFERS
+	VkCommandBufferAllocateInfo allocate_info = {};
+	allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+	allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+	allocate_info.commandBufferCount = 1;
+	allocate_info.commandPool = pool;
+
+	VkCommandBuffer cmd_buffer;
+	vkAllocateCommandBuffers(device, &allocate_info, &cmd_buffer);
+
 	VkCommandBufferBeginInfo begin_info = {};
 	begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
 
 	// Begin recording to the command buffer
-	vkBeginCommandBuffer(transfer_command_buffer, &begin_info);
+	vkBeginCommandBuffer(cmd_buffer, &begin_info);
 
 	VkBufferCopy copy_region = {};
 	copy_region.size = size;
 
 	// Issue a command that copies the staging buffer to the destination buffer
-	vkCmdCopyBuffer(transfer_command_buffer, source, destination, 1, &copy_region);
+	vkCmdCopyBuffer(cmd_buffer, source, destination, 1, &copy_region);
 
 	// End recording to the command buffer
-	vkEndCommandBuffer(transfer_command_buffer);
+	vkEndCommandBuffer(cmd_buffer);
 
 	// Upload the staging buffer to the GPU by executing the transfer command buffer
 	VkSubmitInfo submit_info = {};
 	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
 	submit_info.commandBufferCount = 1;
-	submit_info.pCommandBuffers = &transfer_command_buffer;
+	submit_info.pCommandBuffers = &cmd_buffer;
 
 	// Execute the commands
 	vkQueueSubmit(transfer_queue, 1, &submit_info, VK_NULL_HANDLE);
 	vkQueueWaitIdle(transfer_queue);
+
+	vkFreeCommandBuffers(device, pool, 1, &cmd_buffer);
 }
