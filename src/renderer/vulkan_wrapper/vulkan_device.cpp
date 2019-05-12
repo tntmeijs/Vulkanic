@@ -221,7 +221,7 @@ QueueFamilyIndices VulkanDevice::FindQueueFamilyIndices(
 	const VkPhysicalDevice& physical_device,
 	const VulkanSwapchain& swapchain) const noexcept(false)
 {
-	QueueFamilyIndices queue_family_indices;
+	QueueFamilyIndices queue_family_indices = {};
 
 	std::uint32_t queue_family_count = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(
