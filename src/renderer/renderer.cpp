@@ -21,35 +21,6 @@
 #include <string>
 
 //////////////////////////////////////////////////////////////////////////
-// Vulkan extension functions
-//////////////////////////////////////////////////////////////////////////
-
-VkResult CreateDebugUtilsMessengerEXT(
-	VkInstance instance,
-	const VkDebugUtilsMessengerCreateInfoEXT* create_info,
-	const VkAllocationCallbacks* allocator,
-	VkDebugUtilsMessengerEXT* debug_messenger)
-{
-	auto function = reinterpret_cast<PFN_vkCreateDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT"));
-
-	if (function)
-		return function(instance, create_info, allocator, debug_messenger);
-	else
-		return VK_ERROR_EXTENSION_NOT_PRESENT;
-}
-
-void DestroyDebugUtilsMessengerEXT(
-	VkInstance instance,
-	VkDebugUtilsMessengerEXT debug_messenger,
-	const VkAllocationCallbacks* allocator)
-{
-	auto function = reinterpret_cast<PFN_vkDestroyDebugUtilsMessengerEXT>(vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT"));
-
-	if (function)
-		function(instance, debug_messenger, allocator);
-}
-
-//////////////////////////////////////////////////////////////////////////
 
 using namespace vkc;
 
@@ -1099,23 +1070,6 @@ std::uint32_t Renderer::FindMemoryType(
 
 	spdlog::error("Could not find a suitable memory type");
 	return 0;
-}
-
-VKAPI_ATTR VkBool32 VKAPI_CALL Renderer::DebugMessageCallback(
-	VkDebugUtilsMessageSeverityFlagBitsEXT severity,
-	VkDebugUtilsMessageTypeFlagsEXT type,
-	const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
-	void* user_data)
-{
-	// Suppress "unreferenced formal parameter" warning when using warning level 4
-	type;
-	user_data;
-
-	// Only log warnings to the console
-	if (severity >= VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT)
-		spdlog::warn("Validation layer: {}", callback_data->pMessage);
-
-	return VK_FALSE;
 }
 
 std::vector<char> Renderer::ReadSPRIVFromFile(const char* file)
