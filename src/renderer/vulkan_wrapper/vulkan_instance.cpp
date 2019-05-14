@@ -101,6 +101,7 @@ void VulkanInstance::Create(
 	const auto cstring_layers = utility::ConvertVectorOfStringsToCString(validation_layers);
 
 	VkInstanceCreateInfo instance_info = {};
+	instance_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
 	instance_info.pApplicationInfo = &app_info;
 	instance_info.enabledExtensionCount = static_cast<std::uint32_t>(cstring_extensions.size());
 	instance_info.ppEnabledExtensionNames = cstring_extensions.empty() ? nullptr : cstring_extensions.data();
