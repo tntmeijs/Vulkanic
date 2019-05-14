@@ -63,23 +63,21 @@ namespace vkc::vk_wrapper
 
 	private:
 		/** Select and create a physical device */
-		VkPhysicalDevice SelectPhysicalDevice(
+		void SelectPhysicalDevice(
 			const VulkanInstance& instance,
-			const std::vector<std::string> extensions) const noexcept(false);
+			const std::vector<std::string> extensions) noexcept(false);
 
 		/** Get the best physical device available */
 		VkPhysicalDevice FindBestPhysicalDevice(
 			const std::vector<VkPhysicalDevice>& devices) const noexcept(false);
 
 		/** Fills out the "QueueFamilyIndices" structure */
-		QueueFamilyIndices FindQueueFamilyIndices(
-			const VkPhysicalDevice& physical_device,
-			const VulkanSwapchain& swapchain) const noexcept(false);
+		void FindQueueFamilyIndices(
+			const VulkanSwapchain& swapchain) noexcept(false);
 
 		/** Create a logical device */
-		VkDevice CreateLogicalDevice(
-			const VkPhysicalDevice& physical_device,
-			const std::vector<std::string>& extensions) const noexcept(false);
+		void CreateLogicalDevice(
+			const std::vector<std::string>& extensions) noexcept(false);
 
 	private:
 		VkDevice m_logical_device;

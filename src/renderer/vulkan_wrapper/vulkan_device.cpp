@@ -20,10 +20,10 @@ void VulkanDevice::Create(
 	const std::vector<std::string>& extensions) noexcept(false)
 {
 	// Get the best physical device available on this machine
-	m_physical_device = SelectPhysicalDevice(instance, extensions);
+	SelectPhysicalDevice(instance, extensions);
 
 	// Find queue all queue families
-	m_queue_family_indices = FindQueueFamilyIndices(m_physical_device, swapchain);
+	FindQueueFamilyIndices(swapchain);
 
 	// Check if all required queue family indices were found
 	if (!m_queue_family_indices.IsComplete())
@@ -32,9 +32,7 @@ void VulkanDevice::Create(
 	}
 
 	// Create the logical device
-	m_logical_device = CreateLogicalDevice(
-		m_physical_device,
-		extensions);
+	CreateLogicalDevice(extensions);
 
 	// Save handles to the queues
 	vkGetDeviceQueue(
@@ -98,9 +96,9 @@ const VkQueue& VulkanDevice::GetQueueNativeOfType(VulkanQueueType queue_type) co
 	}
 }
 
-VkPhysicalDevice VulkanDevice::SelectPhysicalDevice(
+void VulkanDevice::SelectPhysicalDevice(
 	const VulkanInstance& instance,
-	const std::vector<std::string> extensions) const noexcept(false)
+	const std::vector<std::string> extensions) noexcept(false)
 {
 	std::uint32_t physical_device_count = 0;
 	vkEnumeratePhysicalDevices(instance.GetNative(), &physical_device_count, nullptr);
@@ -159,7 +157,7 @@ VkPhysicalDevice VulkanDevice::SelectPhysicalDevice(
 		throw exception::CriticalVulkanError("Not every device extension is supported.");
 	}
 
-	return physical_device;
+	m_physical_device = physical_device;
 }
 
 VkPhysicalDevice VulkanDevice::FindBestPhysicalDevice(
@@ -217,15 +215,12 @@ VkPhysicalDevice VulkanDevice::FindBestPhysicalDevice(
 	return scores[0].second;
 }
 
-QueueFamilyIndices VulkanDevice::FindQueueFamilyIndices(
-	const VkPhysicalDevice& physical_device,
-	const VulkanSwapchain& swapchain) const noexcept(false)
+void VulkanDevice::FindQueueFamilyIndices(
+	const VulkanSwapchain& swapchain) noexcept(false)
 {
-	QueueFamilyIndices queue_family_indices = {};
-
 	std::uint32_t queue_family_count = 0;
 	vkGetPhysicalDeviceQueueFamilyProperties(
-		physical_device,
+		m_physical_device,
 		&queue_family_count,
 		nullptr);
 
@@ -236,7 +231,7 @@ QueueFamilyIndices VulkanDevice::FindQueueFamilyIndices(
 
 	std::vector<VkQueueFamilyProperties> queue_families(queue_family_count);
 	vkGetPhysicalDeviceQueueFamilyProperties(
-		physical_device,
+		m_physical_device,
 		&queue_family_count,
 		queue_families.data());
 
@@ -254,45 +249,40 @@ QueueFamilyIndices VulkanDevice::FindQueueFamilyIndices(
 		// Look for a queue family that supports present operations
 		if (present_supported)
 		{
-			queue_family_indices.present_family_index = { 0, 0 };
-			queue_family_indices.present_family_index->first = index;
-			queue_family_indices.present_family_index->second = queue_family.queueCount;
+			m_queue_family_indices.present_family_index = { 0, 0 };
+			m_queue_family_indices.present_family_index->first = index;
+			m_queue_family_indices.present_family_index->second = queue_family.queueCount;
 		}
 
 		// Look for a queue family that supports graphics operations
 		if (queue_family.queueFlags & VK_QUEUE_GRAPHICS_BIT)
 		{
-			queue_family_indices.graphics_family_index = { 0, 0 };
-			queue_family_indices.graphics_family_index->first = index;
-			queue_family_indices.graphics_family_index->second = queue_family.queueCount;
+			m_queue_family_indices.graphics_family_index = { 0, 0 };
+			m_queue_family_indices.graphics_family_index->first = index;
+			m_queue_family_indices.graphics_family_index->second = queue_family.queueCount;
 		}
 
 		// Look for a queue family that supports compute operations
 		if (queue_family.queueFlags & VK_QUEUE_COMPUTE_BIT)
 		{
-			queue_family_indices.compute_family_index = { 0, 0 };
-			queue_family_indices.compute_family_index->first = index;
-			queue_family_indices.compute_family_index->second = queue_family.queueCount;
+			m_queue_family_indices.compute_family_index = { 0, 0 };
+			m_queue_family_indices.compute_family_index->first = index;
+			m_queue_family_indices.compute_family_index->second = queue_family.queueCount;
 		}
 
 		// Stop searching once all queue family indices have been found
-		if (queue_family_indices.IsComplete())
+		if (m_queue_family_indices.IsComplete())
 		{
 			break;
 		}
 
 		++index;
 	}
-
-	return queue_family_indices;
 }
 
-VkDevice VulkanDevice::CreateLogicalDevice(
-	const VkPhysicalDevice& physical_device,
-	const std::vector<std::string>& extensions) const noexcept(false)
+void VulkanDevice::CreateLogicalDevice(
+	const std::vector<std::string>& extensions) noexcept(false)
 {
-	VkDevice logical_device;
-
 	// Eliminate duplicate queue family indices
 	std::set<std::uint32_t> unique_family_indices
 	{
@@ -321,7 +311,7 @@ VkDevice VulkanDevice::CreateLogicalDevice(
 
 	// Get all physical device features
 	VkPhysicalDeviceFeatures device_features;
-	vkGetPhysicalDeviceFeatures(physical_device, &device_features);
+	vkGetPhysicalDeviceFeatures(m_physical_device, &device_features);
 
 	// The create info below needs a c-string instead of std::string
 	auto extension_names_cstring = utility::ConvertVectorOfStringsToCString(extensions);
@@ -335,14 +325,12 @@ VkDevice VulkanDevice::CreateLogicalDevice(
 	device_info.enabledExtensionCount = static_cast<std::uint32_t>(extensions.size());
 	device_info.ppEnabledExtensionNames = extension_names_cstring.data();
 
-	auto result = vkCreateDevice(physical_device, &device_info, nullptr, &logical_device);
+	auto result = vkCreateDevice(m_physical_device, &device_info, nullptr, &m_logical_device);
 	
 	if (result != VK_SUCCESS)
 	{
 		throw exception::CriticalVulkanError("Could not create a logical device.");
 	}
-
-	return logical_device;
 }
 
 bool QueueFamilyIndices::IsComplete()
