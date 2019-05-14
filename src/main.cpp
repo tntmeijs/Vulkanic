@@ -55,8 +55,8 @@ int main(int argc, char* argv[])
 	});
 
 	// Application rendering
-	window.OnDraw([&renderer]() {
-		renderer.Draw();
+	window.OnDraw([&renderer, &window]() {
+		renderer.Draw(window);
 	});
 
 	// Application clean-up

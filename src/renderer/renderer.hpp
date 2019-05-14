@@ -24,13 +24,6 @@
 
 namespace vkc
 {
-	struct SwapchainSupportDetails
-	{
-		VkSurfaceCapabilitiesKHR capabilities;
-		std::vector<VkSurfaceFormatKHR> formats;
-		std::vector<VkPresentModeKHR> present_modes;
-	};
-
 	class Renderer
 	{
 	public:
@@ -38,17 +31,11 @@ namespace vkc
 		~Renderer();
 
 		void Initialize(const Window& window);
-		void Draw();
+		void Draw(const Window& window);
 		void Update();
 		void TriggerFramebufferResized();
 
 	private:
-		void QuerySwapchainSupport();
-		VkSurfaceFormatKHR ChooseSwapchainSurfaceFormat();
-		VkPresentModeKHR ChooseSwapchainSurfacePresentMode();
-		VkExtent2D ChooseSwapchainExtent();
-		void CreateSwapchain();
-		void CreateSwapchainImageViews();
 		void CreateGraphicsPipeline();
 		VkShaderModule CreateShaderModule(const std::vector<char>& spirv);
 		void CreateRenderPass();
@@ -56,7 +43,7 @@ namespace vkc
 		void CreateCommandPools();
 		void CreateCommandBuffers();
 		void CreateSynchronizationObjects();
-		void RecreateSwapchain();
+		void RecreateSwapchain(const Window& window);
 		void CleanUpSwapchain();
 		void CreateVertexBuffer();
 		void CreateUniformBuffers();
@@ -68,12 +55,6 @@ namespace vkc
 			uint32_t type_filter,
 			VkMemoryPropertyFlags properties,
 			const VkPhysicalDevice& physical_device);
-
-		static VKAPI_ATTR VkBool32 VKAPI_CALL DebugMessageCallback(
-			VkDebugUtilsMessageSeverityFlagBitsEXT severity,
-			VkDebugUtilsMessageTypeFlagsEXT type,
-			const VkDebugUtilsMessengerCallbackDataEXT* callback_data,
-			void* user_data);
 
 		static std::vector<char> ReadSPRIVFromFile(const char* file);
 
@@ -96,15 +77,11 @@ namespace vkc
 
 	private:
 		GLFWwindow* m_window;
-		SwapchainSupportDetails m_swap_chain_support;
 		uint64_t m_frame_index;
 		uint32_t m_current_swapchain_image_index;
 
 		bool m_framebuffer_resized;
 
-		VkSwapchainKHR m_swapchain_khr;
-		VkFormat m_swapchain_format;
-		VkExtent2D m_swapchain_extent;
 		VkRenderPass m_render_pass;
 		VkDescriptorSetLayout m_camera_data_descriptor_set_layout;
 		VkPipelineLayout m_pipeline_layout;
@@ -114,8 +91,6 @@ namespace vkc
 		VkDeviceMemory m_vertex_buffer_memory;
 		VkDescriptorPool m_descriptor_pool;
 
-		std::vector<VkImage> m_swapchain_images;
-		std::vector<VkImageView> m_swapchain_image_views;
 		std::vector<VkFramebuffer> m_swapchain_framebuffers;
 		std::vector<VkCommandBuffer> m_command_buffers;
 		std::vector<VkSemaphore> m_in_flight_frame_image_available_semaphores;
