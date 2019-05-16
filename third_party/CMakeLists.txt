@@ -14,6 +14,9 @@ add_subdirectory(glm)
 # Spdlog - configure
 add_subdirectory(spdlog)
 
+# Glslang - configure
+add_subdirectory(glslang)
+
 # GLFW - link
 target_link_libraries(${PROJECT_NAME} glfw)
 target_include_directories(${PROJECT_NAME} PRIVATE glfw)
@@ -25,6 +28,10 @@ target_include_directories(${PROJECT_NAME} PRIVATE glm)
 # Spdlog - link
 target_link_libraries(${PROJECT_NAME} spdlog)
 target_include_directories(${PROJECT_NAME} PRIVATE spdlog)
+
+# Glslang - link
+target_link_libraries(${PROJECT_NAME} glslang)
+target_include_directories(${PROJECT_NAME} PRIVATE glslang)
 
 # Group the generated third-party projects
 set_target_properties(glfw PROPERTIES FOLDER Dependencies)
