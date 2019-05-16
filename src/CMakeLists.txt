@@ -19,7 +19,9 @@ set(VULKAN_WRAPPER_FILES
     renderer/vulkan_wrapper/vulkan_device.cpp
     renderer/vulkan_wrapper/vulkan_device.hpp
     renderer/vulkan_wrapper/vulkan_swapchain.cpp
-    renderer/vulkan_wrapper/vulkan_swapchain.hpp)
+    renderer/vulkan_wrapper/vulkan_swapchain.hpp
+    renderer/vulkan_wrapper/vulkan_shader.cpp
+    renderer/vulkan_wrapper/vulkan_shader.hpp)
 
 # Find Vulkan on the system
 find_package(Vulkan REQUIRED)
