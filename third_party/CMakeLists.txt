@@ -31,6 +31,7 @@ target_include_directories(${PROJECT_NAME} PRIVATE spdlog)
 
 # Glslang - link
 target_link_libraries(${PROJECT_NAME} glslang)
+target_link_libraries(${PROJECT_NAME} SPIRV)
 target_include_directories(${PROJECT_NAME} PRIVATE glslang)
 
 # Group the generated third-party projects

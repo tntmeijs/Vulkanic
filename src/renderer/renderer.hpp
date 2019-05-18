@@ -4,6 +4,7 @@
 #include "vulkan_wrapper/vulkan_debug_messenger.hpp"
 #include "vulkan_wrapper/vulkan_device.hpp"
 #include "vulkan_wrapper/vulkan_instance.hpp"
+#include "vulkan_wrapper/vulkan_shader.hpp"
 #include "vulkan_wrapper/vulkan_swapchain.hpp"
 
 // Application core
@@ -37,7 +38,6 @@ namespace vkc
 
 	private:
 		void CreateGraphicsPipeline();
-		VkShaderModule CreateShaderModule(const std::vector<char>& spirv);
 		void CreateRenderPass();
 		void CreateFramebuffers();
 		void CreateCommandPools();
@@ -55,8 +55,6 @@ namespace vkc
 			uint32_t type_filter,
 			VkMemoryPropertyFlags properties,
 			const VkPhysicalDevice& physical_device);
-
-		static std::vector<char> ReadSPRIVFromFile(const char* file);
 
 		static void CreateBuffer(
 			VkDeviceSize size,
@@ -104,5 +102,6 @@ namespace vkc
 		vk_wrapper::VulkanDebugMessenger m_debug_messenger;
 		vk_wrapper::VulkanSwapchain m_swapchain;
 		vk_wrapper::VulkanDevice m_device;
+		vk_wrapper::VulkanShader m_basic_shader;
 	};
 }
