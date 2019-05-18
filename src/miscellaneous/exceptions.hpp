@@ -26,6 +26,26 @@ namespace vkc::exception
 		std::string m_message;
 	};
 
+	/** Execution should be halted, critical error when reading from disc */
+	/**
+	 * When this exception is thrown, it means that an IO function call failed.
+	 * This is most likely a failure that occured when reading from a file. The
+	 * result of the function was critical for the entire application, which
+	 * means that the execution cannot be continued without resolving the cause
+	 * of this exception.
+	 */
+	class CriticalIOError : public std::exception
+	{
+	public:
+		CriticalIOError(std::string message = "") : m_message(message) {}
+		~CriticalIOError() = default;
+
+		std::string what() { return m_message.c_str(); }
+
+	private:
+		std::string m_message;
+	};
+
 	/** Execution should be halted, critical error in the window */
 	/**
 	 * Somehow something went wrong with the window. This could be caused by

@@ -158,6 +158,15 @@ void Renderer::Initialize(const Window& window)
 
 	CreateRenderPass();
 	CreateDescriptorSetLayout();
+
+	// Create a set of shaders for the graphics pipeline
+	m_basic_shader.Create(
+		m_device,
+		{
+			{ "./resources/shaders/basic.vert", vk_wrapper::VulkanShader::ShaderType::VertexShader },
+			{ "./resources/shaders/basic.frag", vk_wrapper::VulkanShader::ShaderType::FragmentShader }
+		});
+
 	CreateGraphicsPipeline();
 	CreateFramebuffers();
 	CreateCommandPools();
@@ -281,31 +290,6 @@ void Renderer::TriggerFramebufferResized()
 
 void Renderer::CreateGraphicsPipeline()
 {
-	auto vertex_shader_code = ReadSPRIVFromFile("./resources/shaders/basic.vert.spv");
-	auto fragment_shader_code = ReadSPRIVFromFile("./resources/shaders/basic.frag.spv");
-
-	auto vertex_shader_module = CreateShaderModule(vertex_shader_code);
-	auto fragment_shader_module = CreateShaderModule(fragment_shader_code);
-
-	VkPipelineShaderStageCreateInfo vertex_shader_stage_info = {};
-	vertex_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	vertex_shader_stage_info.stage = VK_SHADER_STAGE_VERTEX_BIT;
-	vertex_shader_stage_info.module = vertex_shader_module;
-	vertex_shader_stage_info.pName = "main";
-
-	VkPipelineShaderStageCreateInfo fragment_shader_stage_info = {};
-	fragment_shader_stage_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-	fragment_shader_stage_info.stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-	fragment_shader_stage_info.module = fragment_shader_module;
-	fragment_shader_stage_info.pName = "main";
-
-	// Allows for easy access when creating the pipeline
-	VkPipelineShaderStageCreateInfo pipeline_shader_stages[] =
-	{
-		vertex_shader_stage_info,
-		fragment_shader_stage_info
-	};
-
 	// Describe the vertex data format
 	const auto binding_description = Vertex::GetBindingDescription();
 	const auto attribute_descriptions = Vertex::GetAttributeDescriptions();
@@ -392,7 +376,7 @@ void Renderer::CreateGraphicsPipeline()
 	VkGraphicsPipelineCreateInfo pipeline_info = {};
 	pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
 	pipeline_info.stageCount = 2;
-	pipeline_info.pStages = pipeline_shader_stages;
+	pipeline_info.pStages = m_basic_shader.GetPipelineShaderStageInfos().data();
 	pipeline_info.pVertexInputState = &vertex_input_state;
 	pipeline_info.pInputAssemblyState = &input_assembly_state;
 	pipeline_info.pViewportState = &viewport_state;
@@ -407,30 +391,10 @@ void Renderer::CreateGraphicsPipeline()
 		spdlog::error("Could not create a graphics pipeline.");
 	else
 		spdlog::info("Successfully created a graphics pipeline.");
-
+	
 	// Get rid of the shader modules, as they are no longer needed after the
 	// pipeline has been created
-	vkDestroyShaderModule(m_device.GetLogicalDeviceNative(), vertex_shader_module, nullptr);
-	vkDestroyShaderModule(m_device.GetLogicalDeviceNative(), fragment_shader_module, nullptr);
-}
-
-VkShaderModule Renderer::CreateShaderModule(const std::vector<char>& spirv)
-{
-	VkShaderModule shader_module;
-	VkShaderModuleCreateInfo create_info = {};
-	create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-	create_info.codeSize = spirv.size();
-	create_info.pCode = reinterpret_cast<const std::uint32_t*>(spirv.data());
-
-	if (vkCreateShaderModule(m_device.GetLogicalDeviceNative(), &create_info, nullptr, &shader_module) != VK_SUCCESS)
-	{
-		spdlog::error("Could not create a shader module.");
-		return VK_NULL_HANDLE;
-	}
-
-	spdlog::info("Shader module created successfully.");
-
-	return shader_module;
+	m_basic_shader.Destroy(m_device);
 }
 
 void Renderer::CreateRenderPass()
@@ -866,31 +830,6 @@ std::uint32_t Renderer::FindMemoryType(
 
 	spdlog::error("Could not find a suitable memory type");
 	return 0;
-}
-
-std::vector<char> Renderer::ReadSPRIVFromFile(const char* file)
-{
-	std::ifstream source_code(file, std::ios::ate | std::ios::binary);
-
-	if (!source_code.is_open())
-	{
-		spdlog::error("Could not open \"{}\".", file);
-		return std::vector<char>();
-	}
-
-	// Get the size of the entire shader source file (the file is opened with the position set to end, so this will
-	// return the size of the entire file
-	auto shader_code_size = source_code.tellg();
-
-	std::vector<char> spirv(shader_code_size);
-
-	// Move to the beginning of the file
-	source_code.seekg(0);
-	source_code.read(spirv.data(), shader_code_size);
-
-	spdlog::info("Successfully read the shader \"{}\".", file);
-
-	return spirv;
 }
 
 void Renderer::CreateBuffer(
