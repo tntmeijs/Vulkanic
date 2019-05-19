@@ -15,6 +15,7 @@
 
 using namespace glslang;
 using namespace vkc::vk_wrapper;
+using namespace vkc::vk_wrapper::enums;
 
 void vkc::vk_wrapper::VulkanShader::Create(
 	const VulkanDevice& device,

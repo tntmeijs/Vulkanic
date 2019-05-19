@@ -3,6 +3,8 @@
 // Vulkanic
 #include "miscellaneous/global_settings.hpp"
 #include "renderer.hpp"
+#include "vulkan_wrapper/vulkan_enums.hpp"
+#include "vulkan_wrapper/vulkan_structures.hpp"
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -15,10 +17,10 @@
 
 // C++ standard
 #include <algorithm>
-#include <array>
 #include <fstream>
 #include <set>
 #include <string>
+#include <vector>
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -30,19 +32,19 @@ struct Vertex
 	glm::vec3 position;
 	glm::vec3 color;
 
-	static VkVertexInputBindingDescription GetBindingDescription()
+	static std::vector<VkVertexInputBindingDescription> GetBindingDescriptions()
 	{
 		VkVertexInputBindingDescription desc = {};
 		desc.binding = 0;
 		desc.stride = sizeof(Vertex);
 		desc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
 
-		return desc;
+		return { desc };
 	}
 
-	static std::array<VkVertexInputAttributeDescription, 2> GetAttributeDescriptions()
+	static std::vector<VkVertexInputAttributeDescription> GetAttributeDescriptions()
 	{
-		std::array<VkVertexInputAttributeDescription, 2> attribs;
+		std::vector<VkVertexInputAttributeDescription> attribs(2);
 
 		attribs[0].binding = 0;
 		attribs[0].location = 0;
@@ -158,15 +160,6 @@ void Renderer::Initialize(const Window& window)
 
 	CreateRenderPass();
 	CreateDescriptorSetLayout();
-
-	// Create a set of shaders for the graphics pipeline
-	m_basic_shader.Create(
-		m_device,
-		{
-			{ "./resources/shaders/basic.vert", vk_wrapper::VulkanShader::ShaderType::VertexShader },
-			{ "./resources/shaders/basic.frag", vk_wrapper::VulkanShader::ShaderType::FragmentShader }
-		});
-
 	CreateGraphicsPipeline();
 	CreateFramebuffers();
 	CreateCommandPools();
@@ -226,7 +219,7 @@ void Renderer::Draw(const Window& window)
 	vkResetFences(m_device.GetLogicalDeviceNative(), 1, &m_in_flight_fences[m_frame_index]);
 
 	// Submit the command queue
-	if (vkQueueSubmit(m_device.GetQueueNativeOfType(vk_wrapper::VulkanQueueType::Graphics), 1, &submit_info, m_in_flight_fences[m_frame_index]) != VK_SUCCESS)
+	if (vkQueueSubmit(m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics), 1, &submit_info, m_in_flight_fences[m_frame_index]) != VK_SUCCESS)
 	{
 		spdlog::error("Could not submit the queue for frame #{}.", m_current_swapchain_image_index);
 		return;
@@ -241,7 +234,7 @@ void Renderer::Draw(const Window& window)
 	present_info.pImageIndices = &m_current_swapchain_image_index;
 
 	// Request to present an image to the swapchain
-	result = vkQueuePresentKHR(m_device.GetQueueNativeOfType(vk_wrapper::VulkanQueueType::Present), &present_info);
+	result = vkQueuePresentKHR(m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Present), &present_info);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebuffer_resized)
 	{
@@ -289,24 +282,7 @@ void Renderer::TriggerFramebufferResized()
 }
 
 void Renderer::CreateGraphicsPipeline()
-{
-	// Describe the vertex data format
-	const auto binding_description = Vertex::GetBindingDescription();
-	const auto attribute_descriptions = Vertex::GetAttributeDescriptions();
-	
-	VkPipelineVertexInputStateCreateInfo vertex_input_state = {};
-	vertex_input_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-	vertex_input_state.vertexBindingDescriptionCount = 1;
-	vertex_input_state.pVertexBindingDescriptions = &binding_description;
-	vertex_input_state.vertexAttributeDescriptionCount = static_cast<std::uint32_t>(attribute_descriptions.size());
-	vertex_input_state.pVertexAttributeDescriptions = attribute_descriptions.data();
-
-	// Describe geometry and if primitive restart should be enabled
-	VkPipelineInputAssemblyStateCreateInfo input_assembly_state = {};
-	input_assembly_state.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-	input_assembly_state.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-	input_assembly_state.primitiveRestartEnable = VK_FALSE;
-
+{	
 	// Configure the viewport
 	VkViewport viewport = {};
 	viewport.x = 0.0f;
@@ -321,46 +297,6 @@ void Renderer::CreateGraphicsPipeline()
 	scissor_rect.offset = { 0, 0 };
 	scissor_rect.extent = m_swapchain.GetExtent();
 
-	// Combine the viewport and scissor rectangle settings into a viewport structure
-	VkPipelineViewportStateCreateInfo viewport_state = {};
-	viewport_state.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-	viewport_state.viewportCount = 1;
-	viewport_state.pViewports = &viewport;
-	viewport_state.scissorCount = 1;
-	viewport_state.pScissors = &scissor_rect;
-
-	// Configure the rasterizer
-	VkPipelineRasterizationStateCreateInfo rasterization_state = {};
-	rasterization_state.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-	rasterization_state.depthClampEnable = VK_FALSE;
-	rasterization_state.rasterizerDiscardEnable = VK_FALSE;
-	rasterization_state.polygonMode = VK_POLYGON_MODE_FILL;
-	rasterization_state.lineWidth = 1.0f;
-	rasterization_state.cullMode = VK_CULL_MODE_BACK_BIT;
-	rasterization_state.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-	rasterization_state.depthBiasEnable = VK_FALSE;
-
-	// Configure multi sampling
-	VkPipelineMultisampleStateCreateInfo multisample_state = {};
-	multisample_state.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-	multisample_state.sampleShadingEnable = VK_FALSE;
-	multisample_state.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-
-	// Color blending
-	VkPipelineColorBlendAttachmentState color_blend_attachment = {};
-	color_blend_attachment.colorWriteMask =
-		VK_COLOR_COMPONENT_R_BIT |
-		VK_COLOR_COMPONENT_G_BIT |
-		VK_COLOR_COMPONENT_B_BIT |
-		VK_COLOR_COMPONENT_A_BIT;
-	color_blend_attachment.blendEnable = VK_FALSE;
-
-	VkPipelineColorBlendStateCreateInfo color_blend_state = {};
-	color_blend_state.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-	color_blend_state.logicOpEnable = VK_FALSE;
-	color_blend_state.attachmentCount = 1;
-	color_blend_state.pAttachments = &color_blend_attachment;
-
 	// Pipeline layout
 	VkPipelineLayoutCreateInfo pipeline_layout_info = {};
 	pipeline_layout_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -372,29 +308,35 @@ void Renderer::CreateGraphicsPipeline()
 
 	spdlog::info("Successfully created a pipeline layout.");
 
-	// Create the graphics pipeline
-	VkGraphicsPipelineCreateInfo pipeline_info = {};
-	pipeline_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-	pipeline_info.stageCount = 2;
-	pipeline_info.pStages = m_basic_shader.GetPipelineShaderStageInfos().data();
-	pipeline_info.pVertexInputState = &vertex_input_state;
-	pipeline_info.pInputAssemblyState = &input_assembly_state;
-	pipeline_info.pViewportState = &viewport_state;
-	pipeline_info.pRasterizationState = &rasterization_state;
-	pipeline_info.pMultisampleState = &multisample_state;
-	pipeline_info.pColorBlendState = &color_blend_state;
-	pipeline_info.layout = m_pipeline_layout;
-	pipeline_info.renderPass = m_render_pass;
-	pipeline_info.subpass = 0;
+	// Structure used to configure the graphics pipeline
+	auto* graphics_pipeline_info = new vk_wrapper::structs::VulkanGraphicsPipelineInfo();
 
-	if (vkCreateGraphicsPipelines(m_device.GetLogicalDeviceNative(), VK_NULL_HANDLE, 1, &pipeline_info, nullptr, &m_graphics_pipeline) != VK_SUCCESS)
-		spdlog::error("Could not create a graphics pipeline.");
-	else
-		spdlog::info("Successfully created a graphics pipeline.");
-	
-	// Get rid of the shader modules, as they are no longer needed after the
-	// pipeline has been created
-	m_basic_shader.Destroy(m_device);
+	graphics_pipeline_info->cull_mode = vk_wrapper::enums::PolygonFaceCullMode::FrontFace;
+	graphics_pipeline_info->discard_rasterizer_output = false;
+	graphics_pipeline_info->enable_depth_bias = false;
+	graphics_pipeline_info->line_width = 1.0f;
+	graphics_pipeline_info->polygon_fill_mode = vk_wrapper::enums::PolygonFillMode::Fill;
+	graphics_pipeline_info->scissor_rect = scissor_rect;
+	graphics_pipeline_info->topology = vk_wrapper::enums::VertexTopologyType::TriangleList;
+	graphics_pipeline_info->vertex_attribute_descs = Vertex::GetAttributeDescriptions();
+	graphics_pipeline_info->vertex_binding_descs = Vertex::GetBindingDescriptions();
+	graphics_pipeline_info->viewport = viewport;
+	graphics_pipeline_info->winding_order = vk_wrapper::enums::TriangleWindingOrder::Clockwise;
+
+	// Create the graphics pipeline
+	m_graphics_pipeline.Create(
+		m_device,
+		graphics_pipeline_info,
+		vk_wrapper::enums::PipelineType::Graphics,
+		m_pipeline_layout,
+		m_render_pass,
+		{
+			{ "./resources/shaders/basic.vert", vk_wrapper::enums::ShaderType::Vertex },
+			{ "./resources/shaders/basic.frag", vk_wrapper::enums::ShaderType::Fragment }
+		});
+
+	// No need to keep the info around after pipeline creation
+	delete graphics_pipeline_info;
 }
 
 void Renderer::CreateRenderPass()
@@ -546,7 +488,7 @@ void Renderer::CreateCommandBuffers()
 		vkCmdBeginRenderPass(m_command_buffers[index], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
 		// Bind the graphics pipeline
-		vkCmdBindPipeline(m_command_buffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics_pipeline);
+		vkCmdBindPipeline(m_command_buffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics_pipeline.GetNative());
 
 		// Bind the triangle vertex buffer
 		VkBuffer vertex_buffers[] = { m_vertex_buffer };
@@ -658,7 +600,7 @@ void Renderer::CleanUpSwapchain()
 	// No need to recreate the pool, freeing the command buffers is enough
 	vkFreeCommandBuffers(m_device.GetLogicalDeviceNative(), m_graphics_command_pool, static_cast<std::uint32_t>(m_command_buffers.size()), m_command_buffers.data());
 
-	vkDestroyPipeline(m_device.GetLogicalDeviceNative(), m_graphics_pipeline, nullptr);
+	m_graphics_pipeline.Destroy(m_device);
 	vkDestroyPipelineLayout(m_device.GetLogicalDeviceNative(), m_pipeline_layout, nullptr);
 	vkDestroyRenderPass(m_device.GetLogicalDeviceNative(), m_render_pass, nullptr);
 
@@ -705,7 +647,7 @@ void Renderer::CreateVertexBuffer()
 		staging_buffer,
 		m_vertex_buffer,
 		buffer_size,
-		m_device.GetQueueNativeOfType(vk_wrapper::VulkanQueueType::Graphics),
+		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
 		m_graphics_command_pool);
 
 	// Clean up the staging buffer since it is no longer needed

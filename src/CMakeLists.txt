@@ -4,7 +4,9 @@ set(MISCELLANEOUS_FILES
 
 set(CORE_FILES
     core/window.cpp
-    core/window.hpp)
+    core/window.hpp
+    core/viewport.cpp
+    core/viewport.hpp)
 
 set(RENDERER_FILES
     renderer/renderer.cpp
@@ -12,6 +14,8 @@ set(RENDERER_FILES
 
 set(VULKAN_WRAPPER_FILES
     renderer/vulkan_wrapper/vulkan_utility.hpp
+    renderer/vulkan_wrapper/vulkan_enums.hpp
+    renderer/vulkan_wrapper/vulkan_structures.hpp
     renderer/vulkan_wrapper/vulkan_instance.cpp
     renderer/vulkan_wrapper/vulkan_instance.hpp
     renderer/vulkan_wrapper/vulkan_debug_messenger.cpp
@@ -21,7 +25,9 @@ set(VULKAN_WRAPPER_FILES
     renderer/vulkan_wrapper/vulkan_swapchain.cpp
     renderer/vulkan_wrapper/vulkan_swapchain.hpp
     renderer/vulkan_wrapper/vulkan_shader.cpp
-    renderer/vulkan_wrapper/vulkan_shader.hpp)
+    renderer/vulkan_wrapper/vulkan_shader.hpp
+    renderer/vulkan_wrapper/vulkan_pipeline.cpp
+    renderer/vulkan_wrapper/vulkan_pipeline.hpp)
 
 # Find Vulkan on the system
 find_package(Vulkan REQUIRED)

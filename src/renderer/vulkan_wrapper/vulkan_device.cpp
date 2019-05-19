@@ -2,6 +2,7 @@
 #include "miscellaneous/exceptions.hpp"
 #include "vulkan_device.hpp"
 #include "vulkan_instance.hpp"
+#include "vulkan_structures.hpp"
 #include "vulkan_swapchain.hpp"
 #include "vulkan_utility.hpp"
 
@@ -12,6 +13,8 @@
 #include <algorithm>
 #include <set>
 
+using namespace vkc::vk_wrapper::enums;
+using namespace vkc::vk_wrapper::structs;
 using namespace vkc::vk_wrapper;
 
 void VulkanDevice::Create(
@@ -78,15 +81,15 @@ const VkQueue& VulkanDevice::GetQueueNativeOfType(VulkanQueueType queue_type) co
 {
 	switch (queue_type)
 	{
-		case vkc::vk_wrapper::VulkanQueueType::Graphics:
+		case VulkanQueueType::Graphics:
 			return m_graphics_queue;
 			break;
 		
-		case vkc::vk_wrapper::VulkanQueueType::Present:
+		case VulkanQueueType::Present:
 			return m_present_queue;
 			break;
 		
-		case vkc::vk_wrapper::VulkanQueueType::Compute:
+		case VulkanQueueType::Compute:
 			return m_compute_queue;
 			break;
 
@@ -331,11 +334,4 @@ void VulkanDevice::CreateLogicalDevice(
 	{
 		throw exception::CriticalVulkanError("Could not create a logical device.");
 	}
-}
-
-bool QueueFamilyIndices::IsComplete()
-{
-	return (graphics_family_index.has_value()	&&
-			present_family_index.has_value()	&&
-			compute_family_index.has_value());
 }

@@ -4,8 +4,8 @@
 #include "vulkan_wrapper/vulkan_debug_messenger.hpp"
 #include "vulkan_wrapper/vulkan_device.hpp"
 #include "vulkan_wrapper/vulkan_instance.hpp"
-#include "vulkan_wrapper/vulkan_shader.hpp"
 #include "vulkan_wrapper/vulkan_swapchain.hpp"
+#include "vulkan_wrapper/vulkan_pipeline.hpp"
 
 // Application core
 #include "core/window.hpp"
@@ -83,7 +83,6 @@ namespace vkc
 		VkRenderPass m_render_pass;
 		VkDescriptorSetLayout m_camera_data_descriptor_set_layout;
 		VkPipelineLayout m_pipeline_layout;
-		VkPipeline m_graphics_pipeline;
 		VkCommandPool m_graphics_command_pool;
 		VkBuffer m_vertex_buffer;
 		VkDeviceMemory m_vertex_buffer_memory;
@@ -102,6 +101,6 @@ namespace vkc
 		vk_wrapper::VulkanDebugMessenger m_debug_messenger;
 		vk_wrapper::VulkanSwapchain m_swapchain;
 		vk_wrapper::VulkanDevice m_device;
-		vk_wrapper::VulkanShader m_basic_shader;
+		vk_wrapper::VulkanPipeline m_graphics_pipeline;
 	};
 }

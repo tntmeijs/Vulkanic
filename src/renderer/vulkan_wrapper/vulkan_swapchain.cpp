@@ -14,8 +14,9 @@
 #include <algorithm>
 #include <limits>
 
-using namespace vkc;
+using namespace vkc::vk_wrapper::structs;
 using namespace vkc::vk_wrapper;
+using namespace vkc;
 
 void VulkanSwapchain::CreateSurface(
 	const VulkanInstance& instance,
