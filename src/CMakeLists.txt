@@ -27,7 +27,9 @@ set(VULKAN_WRAPPER_FILES
     renderer/vulkan_wrapper/vulkan_shader.cpp
     renderer/vulkan_wrapper/vulkan_shader.hpp
     renderer/vulkan_wrapper/vulkan_pipeline.cpp
-    renderer/vulkan_wrapper/vulkan_pipeline.hpp)
+    renderer/vulkan_wrapper/vulkan_pipeline.hpp
+    renderer/vulkan_wrapper/vulkan_render_pass.cpp
+    renderer/vulkan_wrapper/vulkan_render_pass.hpp)
 
 # Find Vulkan on the system
 find_package(Vulkan REQUIRED)
