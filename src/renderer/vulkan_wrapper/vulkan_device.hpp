@@ -1,6 +1,10 @@
 #ifndef VULKAN_DEVICE_HPP
 #define VULKAN_DEVICE_HPP
 
+// Application
+#include "vulkan_enums.hpp"
+#include "vulkan_structures.hpp"
+
 // Vulkan
 #include <vulkan/vulkan.h>
 
@@ -14,21 +18,10 @@ namespace vkc::vk_wrapper
 	class VulkanInstance;
 	class VulkanSwapchain;
 
-	struct QueueFamilyIndices
+	namespace structs
 	{
-		std::optional<std::pair<uint32_t, uint32_t>> graphics_family_index;
-		std::optional<std::pair<uint32_t, uint32_t>> present_family_index;
-		std::optional<std::pair<uint32_t, uint32_t>> compute_family_index;
-
-		bool IsComplete();
-	};
-
-	enum class VulkanQueueType
-	{
-		Graphics,
-		Present,
-		Compute
-	};
+		struct QueueFamilyIndices;
+	}
 
 	class VulkanDevice
 	{
@@ -56,10 +49,10 @@ namespace vkc::vk_wrapper
 		const VkDevice& GetLogicalDeviceNative() const noexcept(true);
 
 		/** Get a reference to the queue family indices */
-		const QueueFamilyIndices& GetQueueFamilyIndices() const noexcept(true);
+		const structs::QueueFamilyIndices& GetQueueFamilyIndices() const noexcept(true);
 
 		/** Get a reference to the requested queue */
-		const VkQueue& GetQueueNativeOfType(VulkanQueueType queue_type) const noexcept(false);
+		const VkQueue& GetQueueNativeOfType(enums::VulkanQueueType queue_type) const noexcept(false);
 
 	private:
 		/** Select and create a physical device */
@@ -86,7 +79,7 @@ namespace vkc::vk_wrapper
 		VkQueue m_graphics_queue;
 		VkQueue m_present_queue;
 
-		QueueFamilyIndices m_queue_family_indices;
+		structs::QueueFamilyIndices m_queue_family_indices;
 	};
 }
 
