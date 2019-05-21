@@ -6,6 +6,7 @@
 #include "vulkan_wrapper/vulkan_instance.hpp"
 #include "vulkan_wrapper/vulkan_swapchain.hpp"
 #include "vulkan_wrapper/vulkan_pipeline.hpp"
+#include "vulkan_wrapper/vulkan_render_pass.hpp"
 
 // Application core
 #include "core/window.hpp"
@@ -38,7 +39,6 @@ namespace vkc
 
 	private:
 		void CreateGraphicsPipeline();
-		void CreateRenderPass();
 		void CreateFramebuffers();
 		void CreateCommandPools();
 		void CreateCommandBuffers();
@@ -80,7 +80,6 @@ namespace vkc
 
 		bool m_framebuffer_resized;
 
-		VkRenderPass m_render_pass;
 		VkDescriptorSetLayout m_camera_data_descriptor_set_layout;
 		VkPipelineLayout m_pipeline_layout;
 		VkCommandPool m_graphics_command_pool;
@@ -102,5 +101,6 @@ namespace vkc
 		vk_wrapper::VulkanSwapchain m_swapchain;
 		vk_wrapper::VulkanDevice m_device;
 		vk_wrapper::VulkanPipeline m_graphics_pipeline;
+		vk_wrapper::VulkanRenderPass m_render_pass;
 	};
 }
