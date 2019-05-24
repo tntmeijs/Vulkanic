@@ -2,11 +2,10 @@
 A 3D renderer built using Vulkan for Windows (may support additional platforms in the future).
 
 # Requirements
-- Python 3.6
 - CMake 3.14
 - Visual Studio 2017 **or** Visual Studio 2019
 
-**Make sure you add CMake and Python to your PATH!**
+**Make sure you add CMake to your PATH if you want to follow the instructions below!**
 
 # Installing
 1. Open a terminal window
