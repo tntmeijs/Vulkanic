@@ -41,6 +41,9 @@ namespace vkc
 		void CreateGraphicsPipeline();
 		void CreateFramebuffers();
 		void CreateCommandPools();
+		void CreateTextureImage();
+		void CreateTextureImageView();
+		void CreateTextureSampler();
 		void CreateCommandBuffers();
 		void CreateSynchronizationObjects();
 		void RecreateSwapchain(const Window& window);
@@ -66,12 +69,50 @@ namespace vkc
 			const VkPhysicalDevice physical_device);
 
 		static void CopyStagingBufferToDeviceLocalBuffer(
-			const VkDevice& device,
+			const vk_wrapper::VulkanDevice& device,
 			const VkBuffer& source,
 			const VkBuffer& destination,
 			VkDeviceSize size,
-			const VkQueue& transfer_queue,
+			const VkQueue& queue,
 			const VkCommandPool pool);
+
+		static void CreateImage(
+			const vk_wrapper::VulkanDevice& device,
+			std::uint32_t width,
+			std::uint32_t height,
+			VkFormat format,
+			VkImageTiling tiling,
+			VkImageUsageFlags usage,
+			VkMemoryPropertyFlags properties,
+			VkImage& image,
+			VkDeviceMemory& memory);
+
+		static VkCommandBuffer BeginSingleTimeCommands(
+			const VkCommandPool& pool,
+			const vk_wrapper::VulkanDevice& device);
+
+		static void EndSingleTimeCommands(
+			const vk_wrapper::VulkanDevice& device,
+			const VkCommandPool& pool,
+			const VkCommandBuffer& cmd_buffer,
+			const VkQueue& queue);
+
+		static void TransitionImageLayout(
+			const vk_wrapper::VulkanDevice& device,
+			const VkCommandPool& pool,
+			const VkQueue& queue,
+			const VkImage& image,
+			const VkImageLayout& current_layout,
+			const VkImageLayout& new_layout);
+
+		static void CopyBufferToImage(
+			const vk_wrapper::VulkanDevice& device,
+			const VkCommandPool& pool,
+			const VkQueue& queue,
+			const VkBuffer& buffer,
+			const VkImage& image,
+			std::uint32_t width,
+			std::uint32_t height);
 
 	private:
 		GLFWwindow* m_window;
@@ -86,6 +127,10 @@ namespace vkc
 		VkBuffer m_vertex_buffer;
 		VkDeviceMemory m_vertex_buffer_memory;
 		VkDescriptorPool m_descriptor_pool;
+		VkImage m_texture_image;
+		VkDeviceMemory m_texture_image_memory;
+		VkImageView m_texture_image_view;
+		VkSampler m_texture_sampler;
 
 		std::vector<VkFramebuffer> m_swapchain_framebuffers;
 		std::vector<VkCommandBuffer> m_command_buffers;
