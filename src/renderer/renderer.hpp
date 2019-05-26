@@ -76,17 +76,6 @@ namespace vkc
 			const VkQueue& queue,
 			const VkCommandPool pool);
 
-		static void CreateImage(
-			const vk_wrapper::VulkanDevice& device,
-			std::uint32_t width,
-			std::uint32_t height,
-			VkFormat format,
-			VkImageTiling tiling,
-			VkImageUsageFlags usage,
-			VkMemoryPropertyFlags properties,
-			VkImage& image,
-			VkDeviceMemory& memory);
-
 		static VkCommandBuffer BeginSingleTimeCommands(
 			const VkCommandPool& pool,
 			const vk_wrapper::VulkanDevice& device);

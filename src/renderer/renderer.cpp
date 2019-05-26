@@ -5,6 +5,7 @@
 #include "renderer.hpp"
 #include "vulkan_wrapper/vulkan_enums.hpp"
 #include "vulkan_wrapper/vulkan_structures.hpp"
+#include "vulkan_wrapper/vulkan_functions.hpp"
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -484,15 +485,45 @@ void Renderer::CreateTextureImage()
 	stbi_image_free(pixel_data);
 
 	// Create a Vulkan image
-	CreateImage(
-		m_device,
+	vk_wrapper::func::CreateImage(
+		m_device.GetLogicalDeviceNative(),
 		width,
 		height,
 		VK_FORMAT_R8G8B8A8_UNORM,
 		VK_IMAGE_TILING_OPTIMAL,
 		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		m_texture_image);
+
+	// Allocate memory for the image
+	VkMemoryRequirements memory_requirements;
+	vkGetImageMemoryRequirements(
+		m_device.GetLogicalDeviceNative(),
+		m_texture_image,
+		&memory_requirements);
+
+	VkMemoryAllocateInfo alloc_info = {};
+	alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	alloc_info.allocationSize = memory_requirements.size;
+	alloc_info.memoryTypeIndex = FindMemoryType(
+		memory_requirements.memoryTypeBits,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		m_texture_image, m_texture_image_memory);
+		m_device.GetPhysicalDeviceNative());
+
+	if (vkAllocateMemory(
+		m_device.GetLogicalDeviceNative(),
+		&alloc_info,
+		nullptr,
+		&m_texture_image_memory) != VK_SUCCESS)
+	{
+		spdlog::error("Could not allocate image memory.");
+		return;
+	}
+
+	vkBindImageMemory(
+		m_device.GetLogicalDeviceNative(),
+		m_texture_image,
+		m_texture_image_memory,
+		0);
 
 	// Transition the image so it can be used as a transfer destination
 	TransitionImageLayout(
@@ -1045,56 +1076,6 @@ void Renderer::CopyStagingBufferToDeviceLocalBuffer(
 	vkCmdCopyBuffer(cmd_buffer, source, destination, 1, &copy_region);
 
 	EndSingleTimeCommands(device, pool, cmd_buffer, queue);
-}
-
-void Renderer::CreateImage(
-	const vk_wrapper::VulkanDevice& device,
-	std::uint32_t width,
-	std::uint32_t height,
-	VkFormat format,
-	VkImageTiling tiling,
-	VkImageUsageFlags usage,
-	VkMemoryPropertyFlags properties,
-	VkImage& image,
-	VkDeviceMemory& memory)
-{
-	VkImageCreateInfo image_info = {};
-	image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-	image_info.imageType = VK_IMAGE_TYPE_2D;
-	image_info.extent.width = width;
-	image_info.extent.height = height;
-	image_info.extent.depth = 1;
-	image_info.mipLevels = 1;
-	image_info.arrayLayers = 1;
-	image_info.format = format;
-	image_info.tiling = tiling;
-	image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-	image_info.usage = usage;
-	image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-	image_info.samples = VK_SAMPLE_COUNT_1_BIT;
-
-	// Create the Vulkan image
-	if (vkCreateImage(device.GetLogicalDeviceNative(), &image_info, nullptr, &image) != VK_SUCCESS)
-	{
-		spdlog::error("Could not create an image.");
-		return;
-	}
-
-	VkMemoryRequirements memory_requirements;
-	vkGetImageMemoryRequirements(device.GetLogicalDeviceNative(), image, &memory_requirements);
-
-	VkMemoryAllocateInfo alloc_info = {};
-	alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	alloc_info.allocationSize = memory_requirements.size;
-	alloc_info.memoryTypeIndex = FindMemoryType(memory_requirements.memoryTypeBits, properties, device.GetPhysicalDeviceNative());
-
-	if (vkAllocateMemory(device.GetLogicalDeviceNative(), &alloc_info, nullptr, &memory) != VK_SUCCESS)
-	{
-		spdlog::error("Could not allocate image memory.");
-		return;
-	}
-
-	vkBindImageMemory(device.GetLogicalDeviceNative(), image, memory, 0);
 }
 
 VkCommandBuffer vkc::Renderer::BeginSingleTimeCommands(const VkCommandPool& pool, const vk_wrapper::VulkanDevice& device)
