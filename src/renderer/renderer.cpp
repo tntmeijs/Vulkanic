@@ -9,9 +9,13 @@
 //////////////////////////////////////////////////////////////////////////
 
 // GLM
-#include "glm/gtc/matrix_transform.hpp"
-#include "glm/mat4x4.hpp"
-#include "glm/vec3.hpp"
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/mat4x4.hpp>
+#include <glm/vec3.hpp>
+
+// STB
+#include <miscellaneous/stb_defines.hpp>
+#include <stb_image.h>
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -87,6 +91,9 @@ Renderer::~Renderer()
 	vkDeviceWaitIdle(m_device.GetLogicalDeviceNative());
 
 	CleanUpSwapchain();
+
+	vkDestroyImage(m_device.GetLogicalDeviceNative(), m_texture_image, nullptr);
+	vkFreeMemory(m_device.GetLogicalDeviceNative(), m_texture_image_memory, nullptr);
 
 	vkDestroyDescriptorSetLayout(m_device.GetLogicalDeviceNative(), m_camera_data_descriptor_set_layout, nullptr);
 	vkDestroyBuffer(m_device.GetLogicalDeviceNative(), m_vertex_buffer, nullptr);
@@ -197,6 +204,7 @@ void Renderer::Initialize(const Window& window)
 	CreateGraphicsPipeline();
 	CreateFramebuffers();
 	CreateCommandPools();
+	CreateTextureImage();
 	CreateVertexBuffer();
 	CreateUniformBuffers();
 	CreateDescriptorPool();
@@ -419,6 +427,91 @@ void Renderer::CreateCommandPools()
 	{
 		spdlog::info("Successfully created a graphics command pool.");
 	}
+}
+
+void Renderer::CreateTextureImage()
+{
+	const char* path = "./resources/textures/uv_checker_map.png";
+	int width, height, channel_count;
+	auto* const pixel_data = stbi_load(
+		path,
+		&width,
+		&height,
+		&channel_count,
+		STBI_rgb_alpha);
+
+	VkDeviceSize image_size = width * height * STBI_rgb_alpha;
+
+	if (!pixel_data)
+	{
+		spdlog::error("{} could not be loaded.", path);
+		return;
+	}
+
+	VkBuffer staging_buffer;
+	VkDeviceMemory staging_buffer_memory;
+
+	// Create a staging buffer
+	CreateBuffer(
+		image_size,
+		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+		staging_buffer,
+		staging_buffer_memory,
+		m_device.GetLogicalDeviceNative(),
+		m_device.GetPhysicalDeviceNative());
+
+	// Copy image data to the staging buffer
+	void* buffer_data;
+	vkMapMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory, 0, image_size, 0, &buffer_data);
+	memcpy(buffer_data, pixel_data, static_cast<size_t>(image_size));
+	vkUnmapMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory);
+
+	// Image data has been saved, no need to keep it around anymore
+	stbi_image_free(pixel_data);
+
+	// Create a Vulkan image
+	CreateImage(
+		m_device,
+		width,
+		height,
+		VK_FORMAT_R8G8B8A8_UNORM,
+		VK_IMAGE_TILING_OPTIMAL,
+		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+		m_texture_image, m_texture_image_memory);
+
+	// Transition the image so it can be used as a transfer destination
+	TransitionImageLayout(
+		m_device,
+		m_graphics_command_pool,
+		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
+		m_texture_image,
+		VK_IMAGE_LAYOUT_UNDEFINED,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+	// Perform the buffer to image data transfer
+	CopyBufferToImage(
+		m_device,
+		m_graphics_command_pool,
+		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
+		staging_buffer,
+		m_texture_image,
+		static_cast<std::uint32_t>(width),
+		static_cast<std::uint32_t>(height));
+
+	// Transition the image so it can be used to read from in a shader
+	TransitionImageLayout(
+		m_device,
+		m_graphics_command_pool,
+		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
+		m_texture_image,
+		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+	// Delete the staging buffer
+	vkDestroyBuffer(m_device.GetLogicalDeviceNative(), staging_buffer, nullptr);
+	vkFreeMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory, nullptr);
 }
 
 void Renderer::CreateCommandBuffers()
@@ -665,7 +758,7 @@ void Renderer::CreateVertexBuffer()
 
 	// Copy the staging buffer to the GPU visible buffer
 	CopyStagingBufferToDeviceLocalBuffer(
-		m_device.GetLogicalDeviceNative(),
+		m_device,
 		staging_buffer,
 		m_vertex_buffer,
 		buffer_size,
@@ -839,15 +932,76 @@ void Renderer::CreateBuffer(
 }
 
 void Renderer::CopyStagingBufferToDeviceLocalBuffer(
-	const VkDevice& device,
+	const vk_wrapper::VulkanDevice& device,
 	const VkBuffer& source,
 	const VkBuffer& destination,
 	VkDeviceSize size,
-	const VkQueue& transfer_queue,
+	const VkQueue& queue,
 	const VkCommandPool pool)
 {
-	// Not the best way to do this, needs refactoring
-	// #TODO: REFACTOR THE COMMAND BUFFERS TO USE A SECOND GRAPHICS QUEUE FOR TRANSFERS
+	auto cmd_buffer = BeginSingleTimeCommands(pool, device);
+
+	VkBufferCopy copy_region = {};
+	copy_region.size = size;
+
+	// Issue a command that copies the staging buffer to the destination buffer
+	vkCmdCopyBuffer(cmd_buffer, source, destination, 1, &copy_region);
+
+	EndSingleTimeCommands(device, pool, cmd_buffer, queue);
+}
+
+void Renderer::CreateImage(
+	const vk_wrapper::VulkanDevice& device,
+	std::uint32_t width,
+	std::uint32_t height,
+	VkFormat format,
+	VkImageTiling tiling,
+	VkImageUsageFlags usage,
+	VkMemoryPropertyFlags properties,
+	VkImage& image,
+	VkDeviceMemory& memory)
+{
+	VkImageCreateInfo image_info = {};
+	image_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+	image_info.imageType = VK_IMAGE_TYPE_2D;
+	image_info.extent.width = width;
+	image_info.extent.height = height;
+	image_info.extent.depth = 1;
+	image_info.mipLevels = 1;
+	image_info.arrayLayers = 1;
+	image_info.format = format;
+	image_info.tiling = tiling;
+	image_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+	image_info.usage = usage;
+	image_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+	image_info.samples = VK_SAMPLE_COUNT_1_BIT;
+
+	// Create the Vulkan image
+	if (vkCreateImage(device.GetLogicalDeviceNative(), &image_info, nullptr, &image) != VK_SUCCESS)
+	{
+		spdlog::error("Could not create an image.");
+		return;
+	}
+
+	VkMemoryRequirements memory_requirements;
+	vkGetImageMemoryRequirements(device.GetLogicalDeviceNative(), image, &memory_requirements);
+
+	VkMemoryAllocateInfo alloc_info = {};
+	alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+	alloc_info.allocationSize = memory_requirements.size;
+	alloc_info.memoryTypeIndex = FindMemoryType(memory_requirements.memoryTypeBits, properties, device.GetPhysicalDeviceNative());
+
+	if (vkAllocateMemory(device.GetLogicalDeviceNative(), &alloc_info, nullptr, &memory) != VK_SUCCESS)
+	{
+		spdlog::error("Could not allocate image memory.");
+		return;
+	}
+
+	vkBindImageMemory(device.GetLogicalDeviceNative(), image, memory, 0);
+}
+
+VkCommandBuffer vkc::Renderer::BeginSingleTimeCommands(const VkCommandPool& pool, const vk_wrapper::VulkanDevice& device)
+{
 	VkCommandBufferAllocateInfo allocate_info = {};
 	allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
 	allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
@@ -855,7 +1009,7 @@ void Renderer::CopyStagingBufferToDeviceLocalBuffer(
 	allocate_info.commandPool = pool;
 
 	VkCommandBuffer cmd_buffer;
-	vkAllocateCommandBuffers(device, &allocate_info, &cmd_buffer);
+	vkAllocateCommandBuffers(device.GetLogicalDeviceNative(), &allocate_info, &cmd_buffer);
 
 	VkCommandBufferBeginInfo begin_info = {};
 	begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
@@ -864,12 +1018,15 @@ void Renderer::CopyStagingBufferToDeviceLocalBuffer(
 	// Begin recording to the command buffer
 	vkBeginCommandBuffer(cmd_buffer, &begin_info);
 
-	VkBufferCopy copy_region = {};
-	copy_region.size = size;
+	return cmd_buffer;
+}
 
-	// Issue a command that copies the staging buffer to the destination buffer
-	vkCmdCopyBuffer(cmd_buffer, source, destination, 1, &copy_region);
-
+void vkc::Renderer::EndSingleTimeCommands(
+	const vk_wrapper::VulkanDevice& device,
+	const VkCommandPool& pool,
+	const VkCommandBuffer& cmd_buffer,
+	const VkQueue& queue)
+{
 	// End recording to the command buffer
 	vkEndCommandBuffer(cmd_buffer);
 
@@ -880,8 +1037,105 @@ void Renderer::CopyStagingBufferToDeviceLocalBuffer(
 	submit_info.pCommandBuffers = &cmd_buffer;
 
 	// Execute the commands
-	vkQueueSubmit(transfer_queue, 1, &submit_info, VK_NULL_HANDLE);
-	vkQueueWaitIdle(transfer_queue);
+	vkQueueSubmit(queue, 1, &submit_info, VK_NULL_HANDLE);
+	vkQueueWaitIdle(queue);
 
-	vkFreeCommandBuffers(device, pool, 1, &cmd_buffer);
+	vkFreeCommandBuffers(device.GetLogicalDeviceNative(), pool, 1, &cmd_buffer);
+}
+
+void Renderer::TransitionImageLayout(
+	const vk_wrapper::VulkanDevice& device,
+	const VkCommandPool& pool,
+	const VkQueue& queue,
+	const VkImage& image,
+	const VkImageLayout& current_layout,
+	const VkImageLayout& new_layout)
+{
+	auto cmd_buffer = BeginSingleTimeCommands(pool, device);
+
+	VkPipelineStageFlags source_stage;
+	VkPipelineStageFlags destination_stage;
+
+	VkImageMemoryBarrier barrier = {};
+	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+	barrier.oldLayout = current_layout;
+	barrier.newLayout = new_layout;
+	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+	barrier.image = image;
+	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	barrier.subresourceRange.layerCount = 1;
+	barrier.subresourceRange.levelCount = 1;
+	barrier.subresourceRange.baseArrayLayer = 0;
+	barrier.subresourceRange.baseMipLevel = 0;
+
+	if (current_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+	{
+		barrier.srcAccessMask = 0;
+		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+		source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+		destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+	}
+	else if (current_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+	{
+		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+		source_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+	}
+	else
+	{
+		spdlog::error("Unsupported image layout transition.");
+		return;
+	}
+
+	vkCmdPipelineBarrier(
+		cmd_buffer,
+		source_stage,
+		destination_stage,
+		0,			// Flags
+		0,			// No memory barriers
+		nullptr,
+		0,			// No buffer memory barriers
+		nullptr,
+		1,			// One image memory barrier
+		&barrier);
+
+	EndSingleTimeCommands(device, pool, cmd_buffer, queue);
+}
+
+void Renderer::CopyBufferToImage(
+	const vk_wrapper::VulkanDevice& device,
+	const VkCommandPool& pool,
+	const VkQueue& queue,
+	const VkBuffer& buffer,
+	const VkImage& image,
+	std::uint32_t width,
+	std::uint32_t height)
+{
+	auto cmd_buffer = BeginSingleTimeCommands(pool, device);
+
+	VkBufferImageCopy region = {};
+	
+	// No padding
+	region.bufferOffset = 0;
+	region.bufferRowLength = 0;
+	region.bufferImageHeight = 0;
+
+	// Use no mip / array levels
+	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	region.imageSubresource.baseArrayLayer = 0;
+	region.imageSubresource.mipLevel = 0;
+	region.imageSubresource.layerCount = 1;
+
+	// Copy the entire image
+	region.imageOffset = { 0, 0, 0 };
+	region.imageExtent = { width, height, 1 };
+
+	// Queue the copy operation
+	vkCmdCopyBufferToImage(cmd_buffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+
+	EndSingleTimeCommands(device, pool, cmd_buffer, queue);
 }
