@@ -33,8 +33,9 @@ using namespace vkc;
 // Hard-coded models
 struct Vertex
 {
-	glm::vec3 position;
-	glm::vec3 color;
+	glm::vec4 position;
+	glm::vec4 color;
+	glm::vec2 uv;
 
 	static std::vector<VkVertexInputBindingDescription> GetBindingDescriptions()
 	{
@@ -48,17 +49,28 @@ struct Vertex
 
 	static std::vector<VkVertexInputAttributeDescription> GetAttributeDescriptions()
 	{
-		std::vector<VkVertexInputAttributeDescription> attribs(2);
+		std::vector<VkVertexInputAttributeDescription> attribs;
 
-		attribs[0].binding = 0;
-		attribs[0].location = 0;
-		attribs[0].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attribs[0].offset = offsetof(Vertex, position);
+		VkVertexInputAttributeDescription position_attrib = {};
+		position_attrib.binding = 0;
+		position_attrib.location = 0;
+		position_attrib.format = VK_FORMAT_R32G32B32_SFLOAT;
+		position_attrib.offset = offsetof(Vertex, position);
+		attribs.push_back(position_attrib);
 
-		attribs[1].binding = 0;
-		attribs[1].location = 1;
-		attribs[1].format = VK_FORMAT_R32G32B32_SFLOAT;
-		attribs[1].offset = offsetof(Vertex, color);
+		VkVertexInputAttributeDescription color_attrib = {};
+		color_attrib.binding = 0;
+		color_attrib.location = 1;
+		color_attrib.format = VK_FORMAT_R32G32B32_SFLOAT;
+		color_attrib.offset = offsetof(Vertex, color);
+		attribs.push_back(color_attrib);
+
+		VkVertexInputAttributeDescription uv_attrib = {};
+		uv_attrib.binding = 0;
+		uv_attrib.location = 2;
+		uv_attrib.format = VK_FORMAT_R32G32_SFLOAT;
+		uv_attrib.offset = offsetof(Vertex, uv);
+		attribs.push_back(uv_attrib);
 
 		return attribs;
 	}
@@ -66,10 +78,10 @@ struct Vertex
 
 const std::vector<Vertex> vertices =
 {
-	// Position					// Color
-	{ {  0.0f, -0.5f, 0.0f }, { 1.0f, 1.0f, 1.0f } },
-	{ { -0.5f,  0.5f, 0.0f }, { 0.0f, 1.0f, 0.0f } },
-	{ {  0.5f,  0.5f, 0.0f }, { 0.0f, 0.0f, 1.0f } }
+	// Position						// Color					// UV
+	{ {  0.0f, -0.5f, 0.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },	{ 0.5f, 0.0f } },
+	{ { -0.5f,  0.5f, 0.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },	{ 0.0f, 1.0f } },
+	{ {  0.5f,  0.5f, 0.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },	{ 1.0f, 1.0f } }
 };
 
 struct CameraData
@@ -302,19 +314,16 @@ void Renderer::Draw(const Window& window)
 void Renderer::Update()
 {
 	static float rotate_amount = 0.0f;
-	rotate_amount += 0.0001f;
+	rotate_amount += 0.00001f;
 
 	CameraData cam_data = {};
 	cam_data.model_matrix = glm::rotate(glm::mat4(1.0f), rotate_amount * glm::radians(90.0f), glm::vec3(0.0f, 0.0f, 1.0f));
-	cam_data.view_matrix = glm::lookAt(glm::vec3(0.0f, 0.0f, -0.5f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+	cam_data.view_matrix = glm::lookAt(glm::vec3(0.0f, 0.25f, 0.75f), glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f));
 	cam_data.projection_matrix = glm::perspective(
 		90.0f,
 		static_cast<float>(m_swapchain.GetExtent().width) / static_cast<float>(m_swapchain.GetExtent().height),
 		0.1f,
 		1000.0f);
-
-	// GLM is for OpenGL, Vulkan uses an inverted Y-coordinate
-	cam_data.projection_matrix[1][1] *= -1.0f;
 
 	void* data = nullptr;
 	vkMapMemory(m_device.GetLogicalDeviceNative(), m_camera_ubos_memory[m_current_swapchain_image_index], 0, sizeof(cam_data), 0, &data);
@@ -850,14 +859,18 @@ void Renderer::CreateUniformBuffers()
 
 void Renderer::CreateDescriptorPool()
 {
-	VkDescriptorPoolSize descriptor_pool_size = {};
-	descriptor_pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-	descriptor_pool_size.descriptorCount = static_cast<std::uint32_t>(m_swapchain.GetImages().size());
+	VkDescriptorPoolSize descriptor_pool_sizes[2] = {};
+
+	descriptor_pool_sizes[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+	descriptor_pool_sizes[0].descriptorCount = static_cast<std::uint32_t>(m_swapchain.GetImages().size());
+
+	descriptor_pool_sizes[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	descriptor_pool_sizes[1].descriptorCount = static_cast<std::uint32_t>(m_swapchain.GetImages().size());
 
 	VkDescriptorPoolCreateInfo pool_create_info = {};
 	pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-	pool_create_info.poolSizeCount = 1;
-	pool_create_info.pPoolSizes = &descriptor_pool_size;
+	pool_create_info.poolSizeCount = sizeof(descriptor_pool_sizes) / sizeof(VkDescriptorPoolSize);
+	pool_create_info.pPoolSizes = descriptor_pool_sizes;
 	pool_create_info.maxSets = static_cast<std::uint32_t>(m_swapchain.GetImages().size());
 
 	if (vkCreateDescriptorPool(m_device.GetLogicalDeviceNative(), &pool_create_info, nullptr, &m_descriptor_pool) != VK_SUCCESS)
@@ -877,10 +890,18 @@ void Renderer::CreateDescriptorSetLayout()
 	camera_data_layout_binding.descriptorCount = 1;
 	camera_data_layout_binding.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
 
+	VkDescriptorSetLayoutBinding sampler_layout_binding = {};
+	sampler_layout_binding.binding = 1;
+	sampler_layout_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+	sampler_layout_binding.descriptorCount = 1;
+	sampler_layout_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+
+	VkDescriptorSetLayoutBinding layouts[] = { camera_data_layout_binding, sampler_layout_binding };
+
 	VkDescriptorSetLayoutCreateInfo layout_create_info = {};
 	layout_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-	layout_create_info.bindingCount = 1;
-	layout_create_info.pBindings = &camera_data_layout_binding;
+	layout_create_info.bindingCount = sizeof(layouts) / sizeof(VkDescriptorSetLayoutBinding);
+	layout_create_info.pBindings = layouts;
 
 	if (vkCreateDescriptorSetLayout(m_device.GetLogicalDeviceNative(), &layout_create_info, nullptr, &m_camera_data_descriptor_set_layout) != VK_SUCCESS)
 		spdlog::error("Could not create a descriptor set layout for the camera data.");
@@ -913,16 +934,35 @@ void Renderer::CreateDescriptorSets()
 		buffer_info.offset = 0;
 		buffer_info.range = sizeof(CameraData);
 
-		VkWriteDescriptorSet descriptor_write = {};
-		descriptor_write.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-		descriptor_write.dstSet = m_descriptor_sets[index];
-		descriptor_write.dstBinding = 0;
-		descriptor_write.dstArrayElement = 0;
-		descriptor_write.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-		descriptor_write.descriptorCount = 1;
-		descriptor_write.pBufferInfo = &buffer_info;
+		VkDescriptorImageInfo image_info = {};
+		image_info.sampler = m_texture_sampler;
+		image_info.imageView = m_texture_image_view;
+		image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-		vkUpdateDescriptorSets(m_device.GetLogicalDeviceNative(), 1, &descriptor_write, 0, nullptr);
+		VkWriteDescriptorSet descriptor_writes[2] = {};
+
+		descriptor_writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptor_writes[0].dstSet = m_descriptor_sets[index];
+		descriptor_writes[0].dstBinding = 0;
+		descriptor_writes[0].dstArrayElement = 0;
+		descriptor_writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+		descriptor_writes[0].descriptorCount = 1;
+		descriptor_writes[0].pBufferInfo = &buffer_info;
+
+		descriptor_writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+		descriptor_writes[1].dstSet = m_descriptor_sets[index];
+		descriptor_writes[1].dstBinding = 1;
+		descriptor_writes[1].dstArrayElement = 0;
+		descriptor_writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+		descriptor_writes[1].descriptorCount = 1;
+		descriptor_writes[1].pImageInfo = &image_info;
+
+		vkUpdateDescriptorSets(
+			m_device.GetLogicalDeviceNative(),
+			sizeof(descriptor_writes) / sizeof(VkWriteDescriptorSet),
+			descriptor_writes,
+			0,
+			nullptr);
 	}
 }
 
