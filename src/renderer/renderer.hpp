@@ -54,11 +54,6 @@ namespace vkc
 		void CreateDescriptorSetLayout();
 		void CreateDescriptorSets();
 		
-		static uint32_t FindMemoryType(
-			uint32_t type_filter,
-			VkMemoryPropertyFlags properties,
-			const VkPhysicalDevice& physical_device);
-
 		static void CreateBuffer(
 			VkDeviceSize size,
 			VkBufferUsageFlags usage,
@@ -75,17 +70,6 @@ namespace vkc
 			VkDeviceSize size,
 			const VkQueue& queue,
 			const VkCommandPool pool);
-
-		static void CreateImage(
-			const vk_wrapper::VulkanDevice& device,
-			std::uint32_t width,
-			std::uint32_t height,
-			VkFormat format,
-			VkImageTiling tiling,
-			VkImageUsageFlags usage,
-			VkMemoryPropertyFlags properties,
-			VkImage& image,
-			VkDeviceMemory& memory);
 
 		static VkCommandBuffer BeginSingleTimeCommands(
 			const VkCommandPool& pool,
