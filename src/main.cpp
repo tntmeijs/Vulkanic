@@ -1,5 +1,8 @@
 //////////////////////////////////////////////////////////////////////////
 
+// Make STB work
+#include <miscellaneous/stb_defines.hpp>
+
 // Application renderer
 #include "renderer/renderer.hpp"
 

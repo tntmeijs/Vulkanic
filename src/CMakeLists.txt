@@ -1,6 +1,7 @@
 set(MISCELLANEOUS_FILES
     miscellaneous/global_settings.hpp
-    miscellaneous/exceptions.hpp)
+    miscellaneous/exceptions.hpp
+    miscellaneous/stb_defines.hpp)
 
 set(CORE_FILES
     core/window.cpp

@@ -34,6 +34,9 @@ target_link_libraries(${PROJECT_NAME} glslang)
 target_link_libraries(${PROJECT_NAME} SPIRV)
 target_include_directories(${PROJECT_NAME} PRIVATE glslang)
 
+# STB - header only
+target_include_directories(${PROJECT_NAME} PRIVATE stb)
+
 # Group the generated third-party projects
 set_target_properties(glfw PROPERTIES FOLDER Dependencies)
 set_target_properties(glm_static PROPERTIES FOLDER Dependencies)
