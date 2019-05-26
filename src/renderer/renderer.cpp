@@ -92,6 +92,7 @@ Renderer::~Renderer()
 
 	CleanUpSwapchain();
 
+	vkDestroyImageView(m_device.GetLogicalDeviceNative(), m_texture_image_view, nullptr);
 	vkDestroyImage(m_device.GetLogicalDeviceNative(), m_texture_image, nullptr);
 	vkFreeMemory(m_device.GetLogicalDeviceNative(), m_texture_image_memory, nullptr);
 
@@ -512,6 +513,32 @@ void Renderer::CreateTextureImage()
 	// Delete the staging buffer
 	vkDestroyBuffer(m_device.GetLogicalDeviceNative(), staging_buffer, nullptr);
 	vkFreeMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory, nullptr);
+}
+
+void Renderer::CreateTextureImageView()
+{
+	VkImageViewCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+	info.image = m_texture_image;
+	info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+	info.format = VK_FORMAT_R8G8B8A8_UNORM;
+	info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+	info.subresourceRange.layerCount = 1;
+	info.subresourceRange.levelCount = 1;
+	info.subresourceRange.baseArrayLayer = 0;
+	info.subresourceRange.baseMipLevel = 0;
+	info.components = {
+		VK_COMPONENT_SWIZZLE_IDENTITY,
+		VK_COMPONENT_SWIZZLE_IDENTITY,
+		VK_COMPONENT_SWIZZLE_IDENTITY,
+		VK_COMPONENT_SWIZZLE_IDENTITY
+	};
+
+	if (vkCreateImageView(m_device.GetLogicalDeviceNative(), &info, nullptr, &m_texture_image_view) != VK_SUCCESS)
+	{
+		spdlog::error("Could not create an image view.");
+		return;
+	}
 }
 
 void Renderer::CreateCommandBuffers()
