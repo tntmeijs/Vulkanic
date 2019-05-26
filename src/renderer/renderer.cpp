@@ -92,6 +92,7 @@ Renderer::~Renderer()
 
 	CleanUpSwapchain();
 
+	vkDestroySampler(m_device.GetLogicalDeviceNative(), m_texture_sampler, nullptr);
 	vkDestroyImageView(m_device.GetLogicalDeviceNative(), m_texture_image_view, nullptr);
 	vkDestroyImage(m_device.GetLogicalDeviceNative(), m_texture_image, nullptr);
 	vkFreeMemory(m_device.GetLogicalDeviceNative(), m_texture_image_memory, nullptr);
@@ -206,6 +207,8 @@ void Renderer::Initialize(const Window& window)
 	CreateFramebuffers();
 	CreateCommandPools();
 	CreateTextureImage();
+	CreateTextureImageView();
+	CreateTextureSampler();
 	CreateVertexBuffer();
 	CreateUniformBuffers();
 	CreateDescriptorPool();
@@ -537,6 +540,33 @@ void Renderer::CreateTextureImageView()
 	if (vkCreateImageView(m_device.GetLogicalDeviceNative(), &info, nullptr, &m_texture_image_view) != VK_SUCCESS)
 	{
 		spdlog::error("Could not create an image view.");
+		return;
+	}
+}
+
+void Renderer::CreateTextureSampler()
+{
+	VkSamplerCreateInfo info = {};
+	info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+	info.minFilter = VK_FILTER_LINEAR;
+	info.magFilter = VK_FILTER_LINEAR;
+	info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
+	info.anisotropyEnable = VK_TRUE;
+	info.maxAnisotropy = 16;
+	info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
+	info.unnormalizedCoordinates = VK_FALSE;
+	info.compareEnable = VK_FALSE;
+	info.compareOp = VK_COMPARE_OP_ALWAYS;
+	info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+	info.mipLodBias = 0.0f;
+	info.minLod = 0.0f;
+	info.maxLod = 0.0f;
+
+	if (vkCreateSampler(m_device.GetLogicalDeviceNative(), &info, nullptr, &m_texture_sampler) != VK_SUCCESS)
+	{
+		spdlog::error("Could not create a texture sampler.");
 		return;
 	}
 }

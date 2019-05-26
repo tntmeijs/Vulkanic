@@ -43,6 +43,7 @@ namespace vkc
 		void CreateCommandPools();
 		void CreateTextureImage();
 		void CreateTextureImageView();
+		void CreateTextureSampler();
 		void CreateCommandBuffers();
 		void CreateSynchronizationObjects();
 		void RecreateSwapchain(const Window& window);
@@ -129,6 +130,7 @@ namespace vkc
 		VkImage m_texture_image;
 		VkDeviceMemory m_texture_image_memory;
 		VkImageView m_texture_image_view;
+		VkSampler m_texture_sampler;
 
 		std::vector<VkFramebuffer> m_swapchain_framebuffers;
 		std::vector<VkCommandBuffer> m_command_buffers;
