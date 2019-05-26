@@ -9,6 +9,8 @@
 
 namespace vkc::vk_wrapper::func
 {
+	//////////////////////////////////////////////////////////////////////////
+
 	/** Wraps Vulkan image creation */
 	/**
 	 * This function helps the user to create a Vulkan image. If image creation
@@ -44,6 +46,34 @@ namespace vkc::vk_wrapper::func
 			throw exception::CriticalVulkanError("Could not create an image.");
 		}
 	}
+
+	//////////////////////////////////////////////////////////////////////////
+
+	/** Makes it easy to find the memory type index */
+	inline std::uint32_t FindMemoryType(
+		std::uint32_t type_filter,
+		const VkMemoryPropertyFlags& property_flags,
+		const VkPhysicalDevice& physical_device) noexcept(false)
+	{
+		VkPhysicalDeviceMemoryProperties memory_properties;
+		vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
+
+		for (std::uint32_t index = 0; index < memory_properties.memoryTypeCount; ++index)
+		{
+			// Iterate through the types and check when the "type_filter" bit field is set to 1
+			// Also check whether all required properties are supported
+			if ((type_filter & (1 << index)) &&
+				(memory_properties.memoryTypes[index].propertyFlags & property_flags) == property_flags)
+			{
+				return index;
+			}
+		}
+
+		// Failed to find s suitable memory type index
+		throw exception::CriticalVulkanError("Failed to find a suitable memory type index.");
+	}
+
+	//////////////////////////////////////////////////////////////////////////
 }
 
 #endif

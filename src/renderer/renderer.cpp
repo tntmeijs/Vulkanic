@@ -504,7 +504,7 @@ void Renderer::CreateTextureImage()
 	VkMemoryAllocateInfo alloc_info = {};
 	alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	alloc_info.allocationSize = memory_requirements.size;
-	alloc_info.memoryTypeIndex = FindMemoryType(
+	alloc_info.memoryTypeIndex = vk_wrapper::func::FindMemoryType(
 		memory_requirements.memoryTypeBits,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 		m_device.GetPhysicalDeviceNative());
@@ -997,26 +997,6 @@ void Renderer::CreateDescriptorSets()
 	}
 }
 
-std::uint32_t Renderer::FindMemoryType(
-	std::uint32_t type_filter,
-	VkMemoryPropertyFlags properties,
-	const VkPhysicalDevice& physical_device)
-{
-	VkPhysicalDeviceMemoryProperties memory_properties;
-	vkGetPhysicalDeviceMemoryProperties(physical_device, &memory_properties);
-
-	for (std::uint32_t index = 0; index < memory_properties.memoryTypeCount; ++index)
-	{
-		// Iterate through the types and check when the "type_filter" bit field is set to 1
-		// Also check whether all required properties are supported
-		if ((type_filter & (1 << index)) && (memory_properties.memoryTypes[index].propertyFlags & properties) == properties)
-			return index;
-	}
-
-	spdlog::error("Could not find a suitable memory type");
-	return 0;
-}
-
 void Renderer::CreateBuffer(
 	VkDeviceSize size,
 	VkBufferUsageFlags usage,
@@ -1044,7 +1024,7 @@ void Renderer::CreateBuffer(
 	VkMemoryAllocateInfo allocation_info = {};
 	allocation_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocation_info.allocationSize = memory_requirements.size;
-	allocation_info.memoryTypeIndex = FindMemoryType(
+	allocation_info.memoryTypeIndex = vk_wrapper::func::FindMemoryType(
 		memory_requirements.memoryTypeBits,
 		properties,
 		physical_device);

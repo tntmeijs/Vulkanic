@@ -54,11 +54,6 @@ namespace vkc
 		void CreateDescriptorSetLayout();
 		void CreateDescriptorSets();
 		
-		static uint32_t FindMemoryType(
-			uint32_t type_filter,
-			VkMemoryPropertyFlags properties,
-			const VkPhysicalDevice& physical_device);
-
 		static void CreateBuffer(
 			VkDeviceSize size,
 			VkBufferUsageFlags usage,
