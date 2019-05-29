@@ -4,6 +4,9 @@
 // Vulkan
 #include <vulkan/vulkan.h>
 
+// Stduuid
+#include <uuid.h>
+
 // C++ standard
 #include <memory>
 #include <utility>
@@ -40,7 +43,7 @@ namespace vkc::memory
 		const bool CanFit(VkDeviceSize size) const noexcept(true);
 
 		/** Deallocate a virtual buffer */
-		void DeallocateVirtualBuffer(std::uint32_t buffer_index) noexcept(false);
+		void DeallocateVirtualBuffer(uuids::uuid uuid) noexcept(false);
 
 	private:
 		std::uint32_t m_max_block_size;
@@ -54,8 +57,11 @@ namespace vkc::memory
 		VkDeviceMemory m_memory;
 		VkDeviceSize m_alignment;
 
-		// Stores the ID and the pointer to the virtual buffer
-		std::vector<std::pair<std::uint32_t, std::unique_ptr<VirtualBuffer>>> m_virtual_buffers;
+		// Virtual buffers
+		std::vector<std::unique_ptr<VirtualBuffer>> m_virtual_buffers;
+		
+		// UUIDs of the virtual buffers (should match indices exactly!)
+		std::vector<uuids::uuid> m_virtual_buffer_uuids;
 	};
 }
 

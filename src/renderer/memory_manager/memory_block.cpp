@@ -4,6 +4,10 @@
 #include "renderer/vulkan_wrapper/vulkan_functions.hpp"
 #include "virtual_buffer.hpp"
 
+// C++ standard
+#include <algorithm>
+
+using namespace uuids;
 using namespace vkc::exception;
 using namespace vkc::memory;
 using namespace vkc::vk_wrapper::func;
@@ -82,14 +86,12 @@ const VirtualBuffer& MemoryBlock::SubAllocate(
 		throw GPUOutOfMemoryError("Cannot sub-allocate, block is out of memory.");
 	}
 
-	// Virtual buffer unique ID
+	// Virtual buffer UUID
+	auto uuid = uuid_system_generator{}();
 
 	// Create a new virtual buffer
-	m_virtual_buffers.push_back(std::make_unique<VirtualBuffer>(
-		m_buffer,
-		m_memory,
-		this,
-		static_cast<std::uint32_t>(m_virtual_buffers.size())));
+	m_virtual_buffers.push_back(std::make_unique<VirtualBuffer>(m_buffer, m_memory, this, uuid));
+	m_virtual_buffer_uuids.push_back(uuid);
 
 	// Just pushed back the new virtual buffer, so the index is std::vector::size() - 1
 	auto buffer_index = m_virtual_buffers.size() - 1;
@@ -110,7 +112,7 @@ const VirtualBuffer& MemoryBlock::SubAllocate(
 		m_end = m_virtual_buffers[buffer_index]->Offset() + m_virtual_buffers[buffer_index]->Size();
 
 		// Done sub-allocating, return newly created virtual buffer
-		return *m_virtual_buffers[m_virtual_buffers.size() - 1];
+		return *(m_virtual_buffers[m_virtual_buffers.size() - 1]);
 	}
 
 	// Try to place the buffer somewhere in between existing virtual buffers
@@ -133,7 +135,7 @@ const VirtualBuffer& MemoryBlock::SubAllocate(
 			m_virtual_buffers[buffer_index]->SetOffset(current_buffer_end);
 
 			// Done sub-allocating, return newly created virtual buffer
-			return *m_virtual_buffers[buffer_index];
+			return *(m_virtual_buffers[buffer_index]);
 		}
 	}
 
@@ -172,9 +174,22 @@ const bool MemoryBlock::CanFit(
 	return false;
 }
 
-void vkc::memory::MemoryBlock::DeallocateVirtualBuffer(std::uint32_t buffer_index) noexcept(false)
+void vkc::memory::MemoryBlock::DeallocateVirtualBuffer(uuid uuid) noexcept(false)
 {
 	// Remove the virtual buffer with the specified ID
+	auto result = std::find(m_virtual_buffer_uuids.begin(), m_virtual_buffer_uuids.end(), uuid);
 
-	m_virtual_buffers.erase(m_virtual_buffers.begin() + buffer_index);
+	if (result != m_virtual_buffer_uuids.end())
+	{
+		auto index = result - m_virtual_buffer_uuids.begin();
+
+		// Delete the virtual buffer and the corresponsing UUID
+		m_virtual_buffer_uuids.erase(m_virtual_buffer_uuids.begin() + index);
+		m_virtual_buffers.erase(m_virtual_buffers.begin() + index);
+
+		// Success
+		return;
+	}
+
+	throw GPUOutOfMemoryError("No virtual buffer with this UUID exists.");
 }

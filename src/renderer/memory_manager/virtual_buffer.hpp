@@ -4,6 +4,9 @@
 // Vulkan
 #include <vulkan/vulkan.h>
 
+// Stduuid
+#include <uuid.h>
+
 // C++ standard
 #include <cstdint>
 
@@ -19,7 +22,7 @@ namespace vkc::memory
 			const VkBuffer& buffer_ref,
 			const VkDeviceMemory& memory_ref,
 			MemoryBlock* const parent_block_ptr,
-			std::uint32_t id) noexcept(true);
+			uuids::uuid uuid) noexcept(true);
 
 		~VirtualBuffer() noexcept(true);
 
@@ -61,6 +64,7 @@ namespace vkc::memory
 		std::uint32_t m_size;
 		std::uint32_t m_id;
 		void* m_data;
+		uuids::uuid m_uuid;
 	};
 }
 

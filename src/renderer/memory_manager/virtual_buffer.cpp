@@ -2,20 +2,21 @@
 #include "memory_block.hpp"
 #include "virtual_buffer.hpp"
 
+using namespace uuids;
 using namespace vkc::memory;
 
 VirtualBuffer::VirtualBuffer(
 	const VkBuffer& buffer_ref,
 	const VkDeviceMemory& memory_ref,
 	MemoryBlock* const parent_block_ptr,
-	std::uint32_t id) noexcept(true)
+	uuid uuid) noexcept(true)
 	: m_buffer(buffer_ref)
 	, m_memory(memory_ref)
 	, m_parent_block(parent_block_ptr)
 	, m_offset(0)
 	, m_size(0)
 	, m_data(nullptr)
-	, m_id(id)
+	, m_uuid(uuid)
 {}
 
 VirtualBuffer::~VirtualBuffer() noexcept(true)
@@ -68,5 +69,5 @@ const VkDeviceMemory& VirtualBuffer::Memory() const noexcept(true)
 
 void VirtualBuffer::Deallocate() const noexcept(false)
 {
-	m_parent_block->DeallocateVirtualBuffer(m_id);
+	m_parent_block->DeallocateVirtualBuffer(m_uuid);
 }
