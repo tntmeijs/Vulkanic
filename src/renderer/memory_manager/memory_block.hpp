@@ -6,6 +6,7 @@
 
 // C++ standard
 #include <memory>
+#include <utility>
 #include <vector>
 
 namespace vkc::memory
@@ -53,7 +54,8 @@ namespace vkc::memory
 		VkDeviceMemory m_memory;
 		VkDeviceSize m_alignment;
 
-		std::vector<std::unique_ptr<VirtualBuffer>> m_virtual_buffers;
+		// Stores the ID and the pointer to the virtual buffer
+		std::vector<std::pair<std::uint32_t, std::unique_ptr<VirtualBuffer>>> m_virtual_buffers;
 	};
 }
 

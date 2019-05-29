@@ -8,6 +8,7 @@
 #include "vulkan_wrapper/vulkan_pipeline.hpp"
 #include "vulkan_wrapper/vulkan_render_pass.hpp"
 #include "vulkan_wrapper/vulkan_swapchain.hpp"
+#include "memory_manager/virtual_buffer.hpp"
 
 // Application core
 #include "core/window.hpp"
@@ -27,6 +28,8 @@
 
 namespace vkc
 {
+	class memory::VirtualBuffer;
+
 	class Renderer
 	{
 	public:
@@ -117,13 +120,13 @@ namespace vkc
 		VkImageView m_texture_image_view;
 		VkSampler m_texture_sampler;
 
+		std::vector<memory::VirtualBuffer> m_camera_ubos;
+
 		std::vector<VkFramebuffer> m_swapchain_framebuffers;
 		std::vector<VkCommandBuffer> m_command_buffers;
 		std::vector<VkSemaphore> m_in_flight_frame_image_available_semaphores;
 		std::vector<VkSemaphore> m_in_flight_render_finished_semaphores;
 		std::vector<VkFence> m_in_flight_fences;
-		std::vector<VkBuffer> m_camera_ubos;
-		std::vector<VkDeviceMemory> m_camera_ubos_memory;
 		std::vector<VkDescriptorSet> m_descriptor_sets;
 
 		vk_wrapper::VulkanInstance m_instance;

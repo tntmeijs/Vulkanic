@@ -18,6 +18,9 @@ VirtualBuffer::VirtualBuffer(
 	, m_id(id)
 {}
 
+VirtualBuffer::~VirtualBuffer() noexcept(true)
+{}
+
 void VirtualBuffer::Map(const VkDevice & device) noexcept(true)
 {
 	vkMapMemory(device, m_memory, m_offset, m_size, 0, &m_data);

@@ -7,7 +7,6 @@
 #include "vulkan_wrapper/vulkan_structures.hpp"
 #include "vulkan_wrapper/vulkan_functions.hpp"
 #include "miscellaneous/vulkanic_literals.hpp"
-#include "memory_manager/virtual_buffer.hpp"
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -331,10 +330,9 @@ void Renderer::Update()
 		0.1f,
 		1000.0f);
 
-	void* data = nullptr;
-	vkMapMemory(m_device.GetLogicalDeviceNative(), m_camera_ubos_memory[m_current_swapchain_image_index], 0, sizeof(cam_data), 0, &data);
-	memcpy(data, &cam_data, sizeof(cam_data));
-	vkUnmapMemory(m_device.GetLogicalDeviceNative(), m_camera_ubos_memory[m_current_swapchain_image_index]);
+	m_camera_ubos[m_current_swapchain_image_index].Map(m_device.GetLogicalDeviceNative());
+	memcpy(m_camera_ubos[m_current_swapchain_image_index].Data(), &cam_data, sizeof(cam_data));
+	m_camera_ubos[m_current_swapchain_image_index].UnMap(m_device.GetLogicalDeviceNative());
 }
 
 void Renderer::TriggerFramebufferResized()
@@ -796,8 +794,7 @@ void Renderer::CleanUpSwapchain()
 	for (auto index = 0; index < m_swapchain.GetImages().size(); ++index)
 	{
 		vkDestroyFramebuffer(m_device.GetLogicalDeviceNative(), m_swapchain_framebuffers[index], nullptr);
-		vkDestroyBuffer(m_device.GetLogicalDeviceNative(), m_camera_ubos[index], nullptr);
-		vkFreeMemory(m_device.GetLogicalDeviceNative(), m_camera_ubos_memory[index], nullptr);
+		m_camera_ubos[index].Deallocate();
 	}
 
 	vkDestroyDescriptorPool(m_device.GetLogicalDeviceNative(), m_descriptor_pool, nullptr);
@@ -864,20 +861,17 @@ void Renderer::CreateUniformBuffers()
 {
 	VkDeviceSize ubo_size = sizeof(CameraData);
 
-	m_camera_ubos.resize(m_swapchain.GetImages().size());
-	m_camera_ubos_memory.resize(m_swapchain.GetImages().size());
+	m_camera_ubos.reserve(m_swapchain.GetImages().size());
 
 	// Create a camera data UBO for each image in the swapchain
 	for (auto index = 0; index < m_swapchain.GetImages().size(); ++index)
 	{
-		CreateBuffer(
+		m_camera_ubos.push_back(m_memory_manager.AllocateBuffer(
+			m_device.GetLogicalDeviceNative(),
+			m_device.GetPhysicalDeviceNative(),
 			ubo_size,
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			m_camera_ubos[index],
-			m_camera_ubos_memory[index],
-			m_device.GetLogicalDeviceNative(),
-			m_device.GetPhysicalDeviceNative());
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT));
 	}
 }
 
@@ -954,7 +948,7 @@ void Renderer::CreateDescriptorSets()
 	for (auto index = 0; index < m_swapchain.GetImages().size(); ++index)
 	{
 		VkDescriptorBufferInfo buffer_info = {};
-		buffer_info.buffer = m_camera_ubos[index];
+		buffer_info.buffer = m_camera_ubos[index].Buffer();
 		buffer_info.offset = 0;
 		buffer_info.range = sizeof(CameraData);
 

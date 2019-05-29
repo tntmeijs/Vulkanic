@@ -76,14 +76,20 @@ MemoryBlock::~MemoryBlock() noexcept(true)
 const VirtualBuffer& MemoryBlock::SubAllocate(
 	VkDeviceSize size) noexcept(false)
 {
-	// Memory manager made a big mistake, this block cannot even store more data
+	// Memory manager made a big mistake, this block cannot even store this data, even if it was not fragmented at all
 	if (m_max_block_size - m_current_size < size)
 	{
 		throw GPUOutOfMemoryError("Cannot sub-allocate, block is out of memory.");
 	}
 
-	// Create a new virtual buffer (id is just the index into the vector before pushing back the new virtual buffer)
-	m_virtual_buffers.push_back(std::make_unique<VirtualBuffer>(m_buffer, m_memory, this, static_cast<std::uint32_t>(m_virtual_buffers.size())));
+	// Virtual buffer unique ID
+
+	// Create a new virtual buffer
+	m_virtual_buffers.push_back(std::make_unique<VirtualBuffer>(
+		m_buffer,
+		m_memory,
+		this,
+		static_cast<std::uint32_t>(m_virtual_buffers.size())));
 
 	// Just pushed back the new virtual buffer, so the index is std::vector::size() - 1
 	auto buffer_index = m_virtual_buffers.size() - 1;
@@ -168,5 +174,7 @@ const bool MemoryBlock::CanFit(
 
 void vkc::memory::MemoryBlock::DeallocateVirtualBuffer(std::uint32_t buffer_index) noexcept(false)
 {
+	// Remove the virtual buffer with the specified ID
+
 	m_virtual_buffers.erase(m_virtual_buffers.begin() + buffer_index);
 }

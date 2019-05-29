@@ -21,7 +21,7 @@ namespace vkc::memory
 			MemoryBlock* const parent_block_ptr,
 			std::uint32_t id) noexcept(true);
 
-		~VirtualBuffer() noexcept(true) {}
+		~VirtualBuffer() noexcept(true);
 
 		/** Map a region of the memory block to the CPU-visible pointer */
 		void Map(const VkDevice& device) noexcept(true);
