@@ -9,6 +9,8 @@
 #include "vulkan_wrapper/vulkan_render_pass.hpp"
 #include "vulkan_wrapper/vulkan_swapchain.hpp"
 #include "memory_manager/virtual_buffer.hpp"
+#include "vulkan_wrapper/vulkan_command_buffer.hpp"
+#include "vulkan_wrapper/vulkan_command_pool.hpp"
 
 // Application core
 #include "core/window.hpp"
@@ -45,11 +47,10 @@ namespace vkc
 	private:
 		void CreateGraphicsPipeline();
 		void CreateFramebuffers();
-		void CreateCommandPools();
 		void CreateTextureImage();
 		void CreateTextureImageView();
 		void CreateTextureSampler();
-		void CreateCommandBuffers();
+		void RecordFrameCommands();
 		void CreateSynchronizationObjects();
 		void RecreateSwapchain(const Window& window);
 		void CleanUpSwapchain();
@@ -102,7 +103,6 @@ namespace vkc
 
 		VkDescriptorSetLayout m_camera_data_descriptor_set_layout;
 		VkPipelineLayout m_pipeline_layout;
-		VkCommandPool m_graphics_command_pool;
 		VkDescriptorPool m_descriptor_pool;
 		VkImage m_texture_image;
 		VkDeviceMemory m_texture_image_memory;
@@ -113,7 +113,6 @@ namespace vkc
 		std::vector<memory::VirtualBuffer> m_camera_ubos;
 
 		std::vector<VkFramebuffer> m_swapchain_framebuffers;
-		std::vector<VkCommandBuffer> m_command_buffers;
 		std::vector<VkSemaphore> m_in_flight_frame_image_available_semaphores;
 		std::vector<VkSemaphore> m_in_flight_render_finished_semaphores;
 		std::vector<VkFence> m_in_flight_fences;
@@ -125,6 +124,8 @@ namespace vkc
 		vk_wrapper::VulkanDevice m_device;
 		vk_wrapper::VulkanPipeline m_graphics_pipeline;
 		vk_wrapper::VulkanRenderPass m_render_pass;
+		vk_wrapper::VulkanCommandPool m_graphics_command_pool;
+		vk_wrapper::VulkanCommandBuffer m_graphics_command_buffers;
 
 		memory::MemoryManager m_memory_manager;
 	};

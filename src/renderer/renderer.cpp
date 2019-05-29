@@ -127,7 +127,7 @@ Renderer::~Renderer()
 		vkDestroyFence(m_device.GetLogicalDeviceNative(), m_in_flight_fences[index], nullptr);
 	}
 	
-	vkDestroyCommandPool(m_device.GetLogicalDeviceNative(), m_graphics_command_pool, nullptr);
+	m_graphics_command_pool.Destroy(m_device);
 
 	// Clean-up all memory chunks
 	m_memory_manager.Destroy();
@@ -223,7 +223,9 @@ void Renderer::Initialize(const Window& window)
 	CreateDescriptorSetLayout();
 	CreateGraphicsPipeline();
 	CreateFramebuffers();
-	CreateCommandPools();
+
+	m_graphics_command_pool.Create(m_device, vk_wrapper::CommandPoolType::Graphics);
+
 	CreateTextureImage();
 	CreateTextureImageView();
 	CreateTextureSampler();
@@ -231,7 +233,7 @@ void Renderer::Initialize(const Window& window)
 	CreateUniformBuffers();
 	CreateDescriptorPool();
 	CreateDescriptorSets();
-	CreateCommandBuffers();
+	RecordFrameCommands();
 	CreateSynchronizationObjects();
 }
 
@@ -275,7 +277,7 @@ void Renderer::Draw(const Window& window)
 	submit_info.pWaitSemaphores = wait_semaphores;
 	submit_info.pWaitDstStageMask = wait_stages;
 	submit_info.commandBufferCount = 1;
-	submit_info.pCommandBuffers = &m_command_buffers[m_current_swapchain_image_index];
+	submit_info.pCommandBuffers = &m_graphics_command_buffers.GetNative(m_current_swapchain_image_index);
 	submit_info.signalSemaphoreCount = sizeof(signal_semaphores) / sizeof(signal_semaphores[0]);
 	submit_info.pSignalSemaphores = signal_semaphores;
 
@@ -428,25 +430,6 @@ void Renderer::CreateFramebuffers()
 	spdlog::info("Successfully created a framebuffer for each swapchain image view.");
 }
 
-void Renderer::CreateCommandPools()
-{
-	auto queue_family_indices = m_device.GetQueueFamilyIndices();
-
-	VkCommandPoolCreateInfo graphics_pool_info = {};
-	graphics_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-	graphics_pool_info.queueFamilyIndex = queue_family_indices.graphics_family_index->first;
-
-	if (vkCreateCommandPool(m_device.GetLogicalDeviceNative(), &graphics_pool_info, nullptr, &m_graphics_command_pool) != VK_SUCCESS)
-	{
-		spdlog::error("Could not create a graphics command pool.");
-		return;
-	}
-	else
-	{
-		spdlog::info("Successfully created a graphics command pool.");
-	}
-}
-
 void Renderer::CreateTextureImage()
 {
 	const char* path = "./resources/textures/uv_checker_map.png";
@@ -521,7 +504,7 @@ void Renderer::CreateTextureImage()
 	// Transition the image so it can be used as a transfer destination
 	TransitionImageLayout(
 		m_device,
-		m_graphics_command_pool,
+		m_graphics_command_pool.GetNative(),
 		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
 		m_texture_image,
 		VK_IMAGE_LAYOUT_UNDEFINED,
@@ -530,7 +513,7 @@ void Renderer::CreateTextureImage()
 	// Perform the buffer to image data transfer
 	CopyBufferToImage(
 		m_device,
-		m_graphics_command_pool,
+		m_graphics_command_pool.GetNative(),
 		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
 		staging_buffer.Buffer(),
 		m_texture_image,
@@ -540,7 +523,7 @@ void Renderer::CreateTextureImage()
 	// Transition the image so it can be used to read from in a shader
 	TransitionImageLayout(
 		m_device,
-		m_graphics_command_pool,
+		m_graphics_command_pool.GetNative(),
 		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
 		m_texture_image,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -603,42 +586,18 @@ void Renderer::CreateTextureSampler()
 	}
 }
 
-void Renderer::CreateCommandBuffers()
+void Renderer::RecordFrameCommands()
 {
-	// We need one command buffer per swapchain framebuffer
-	m_command_buffers.resize(m_swapchain_framebuffers.size());
-	
-	VkCommandBufferAllocateInfo graphics_command_buffer_allocate_info = {};
-	graphics_command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	graphics_command_buffer_allocate_info.commandPool = m_graphics_command_pool;
-	graphics_command_buffer_allocate_info.commandBufferCount = static_cast<std::uint32_t>(m_command_buffers.size());
-	graphics_command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-
-	// Allocate the command buffers
-	if (vkAllocateCommandBuffers(m_device.GetLogicalDeviceNative(), &graphics_command_buffer_allocate_info, m_command_buffers.data()) != VK_SUCCESS)
-	{
-		spdlog::error("Could not allocate command buffers.");
-		return;
-	}
-
-	spdlog::info("Successfully allocated command buffers.");
-
-	// Index tracking for the range-based for-loop
-	std::uint32_t index = 0;
+	m_graphics_command_buffers.Create(
+		m_device,
+		m_graphics_command_pool,
+		static_cast<std::uint32_t>(m_swapchain_framebuffers.size()));
 
 	// Record commands into command buffers
-	for (const auto& command_buffer : m_command_buffers)
+	for (auto i = 0; i < m_swapchain_framebuffers.size(); ++i)
 	{
-		VkCommandBufferBeginInfo begin_info = {};
-		begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-		begin_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
-		
 		// Begin recording
-		if (vkBeginCommandBuffer(command_buffer, &begin_info) != VK_SUCCESS)
-		{
-			spdlog::error("Could not begin recording to command buffer #{}.", index);
-			return;
-		}
+		m_graphics_command_buffers.BeginRecording(i, vk_wrapper::CommandBufferUsage::SimultaneousUse);
 
 		// Black clear color
 		VkClearValue clear_color = { 0.0f, 0.0f, 0.0f, 1.0f };
@@ -647,48 +606,42 @@ void Renderer::CreateCommandBuffers()
 		VkRenderPassBeginInfo render_pass_begin_info = {};
 		render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
 		render_pass_begin_info.renderPass = m_render_pass.GetNative();
-		render_pass_begin_info.framebuffer = m_swapchain_framebuffers[index];
+		render_pass_begin_info.framebuffer = m_swapchain_framebuffers[i];
 		render_pass_begin_info.renderArea.offset = { 0, 0 };
 		render_pass_begin_info.renderArea.extent = m_swapchain.GetExtent();
 		render_pass_begin_info.clearValueCount = 1;
 		render_pass_begin_info.pClearValues = &clear_color;
 
 		// Start the render pass
-		vkCmdBeginRenderPass(m_command_buffers[index], &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+		vkCmdBeginRenderPass(m_graphics_command_buffers.GetNative(i), &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
 		// Bind the graphics pipeline
-		vkCmdBindPipeline(m_command_buffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics_pipeline.GetNative());
+		vkCmdBindPipeline(m_graphics_command_buffers.GetNative(i), VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics_pipeline.GetNative());
 
 		// Bind the triangle vertex buffer
 		VkBuffer vertex_buffers[] = { m_vertex_buffer->Buffer() };
 		VkDeviceSize offsets[] = { 0 };
-		vkCmdBindVertexBuffers(m_command_buffers[index], 0, 1, vertex_buffers, offsets);
+		vkCmdBindVertexBuffers(m_graphics_command_buffers.GetNative(i), 0, 1, vertex_buffers, offsets);
 
 		// Bind the camera UBO
 		vkCmdBindDescriptorSets(
-			m_command_buffers[index],
+			m_graphics_command_buffers.GetNative(i),
 			VK_PIPELINE_BIND_POINT_GRAPHICS,
 			m_pipeline_layout,
 			0,
 			1,
-			&m_descriptor_sets[index],
+			&m_descriptor_sets[i],
 			0,
 			nullptr);
 
 		// Draw the triangle using hard-coded shader vertices
-		vkCmdDraw(m_command_buffers[index], static_cast<std::uint32_t>(vertices.size()), 1, 0, 0);
+		vkCmdDraw(m_graphics_command_buffers.GetNative(i), static_cast<std::uint32_t>(vertices.size()), 1, 0, 0);
 
 		// End the render pass
-		vkCmdEndRenderPass(m_command_buffers[index]);
+		vkCmdEndRenderPass(m_graphics_command_buffers.GetNative(i));
 
 		// Finish recording
-		if (vkEndCommandBuffer(m_command_buffers[index]) != VK_SUCCESS)
-		{
-			spdlog::error("Could not record to command buffer #{}.", index);
-			return;
-		}
-
-		++index;
+		m_graphics_command_buffers.StopRecording(i);
 	}
 }
 
@@ -785,7 +738,7 @@ void Renderer::RecreateSwapchain(const Window& window)
 	CreateUniformBuffers();
 	CreateDescriptorPool();
 	CreateDescriptorSets();
-	CreateCommandBuffers();
+	RecordFrameCommands();
 
 	spdlog::info("Recreated the swapchain successfully.");
 }
@@ -801,7 +754,7 @@ void Renderer::CleanUpSwapchain()
 	vkDestroyDescriptorPool(m_device.GetLogicalDeviceNative(), m_descriptor_pool, nullptr);
 
 	// No need to recreate the pool, freeing the command buffers is enough
-	vkFreeCommandBuffers(m_device.GetLogicalDeviceNative(), m_graphics_command_pool, static_cast<std::uint32_t>(m_command_buffers.size()), m_command_buffers.data());
+	m_graphics_command_buffers.Destroy(m_device, m_graphics_command_pool);
 
 	m_graphics_pipeline.Destroy(m_device);
 	vkDestroyPipelineLayout(m_device.GetLogicalDeviceNative(), m_pipeline_layout, nullptr);
@@ -841,7 +794,7 @@ void Renderer::CreateVertexBuffer()
 		&staging_buffer,
 		m_vertex_buffer.get(),
 		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
-		m_graphics_command_pool);
+		m_graphics_command_pool.GetNative());
 
 	// Clean up the staging buffer since it is no longer needed
 	staging_buffer.Deallocate();
