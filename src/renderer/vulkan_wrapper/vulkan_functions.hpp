@@ -50,7 +50,7 @@ namespace vkc::vk_wrapper::func
 	//////////////////////////////////////////////////////////////////////////
 
 	/** Makes it easy to find the memory type index */
-	inline std::uint32_t FindMemoryType(
+	inline std::uint32_t FindMemoryTypeIndex(
 		std::uint32_t type_filter,
 		const VkMemoryPropertyFlags& property_flags,
 		const VkPhysicalDevice& physical_device) noexcept(false)
@@ -71,6 +71,14 @@ namespace vkc::vk_wrapper::func
 
 		// Failed to find s suitable memory type index
 		throw exception::CriticalVulkanError("Failed to find a suitable memory type index.");
+	}
+
+	//////////////////////////////////////////////////////////////////////////
+
+	/** Align a size to the specified alignment */
+	inline std::uint32_t AlignTo(std::uint32_t size, std::uint32_t alignment) noexcept(true)
+	{
+		return size + ((alignment - (size % alignment)) % alignment);
 	}
 
 	//////////////////////////////////////////////////////////////////////////

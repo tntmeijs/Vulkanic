@@ -6,6 +6,8 @@
 #include "vulkan_wrapper/vulkan_enums.hpp"
 #include "vulkan_wrapper/vulkan_structures.hpp"
 #include "vulkan_wrapper/vulkan_functions.hpp"
+#include "miscellaneous/vulkanic_literals.hpp"
+#include "memory_manager/virtual_buffer.hpp"
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -96,6 +98,7 @@ Renderer::Renderer()
 	: m_frame_index(0)
 	, m_current_swapchain_image_index(0)
 	, m_framebuffer_resized(false)
+	, m_memory_manager(static_cast<std::uint32_t>(64_MB))
 {}
 
 Renderer::~Renderer()
@@ -104,6 +107,8 @@ Renderer::~Renderer()
 	vkDeviceWaitIdle(m_device.GetLogicalDeviceNative());
 
 	CleanUpSwapchain();
+
+	m_memory_manager.Destroy();
 
 	vkDestroySampler(m_device.GetLogicalDeviceNative(), m_texture_sampler, nullptr);
 	vkDestroyImageView(m_device.GetLogicalDeviceNative(), m_texture_image_view, nullptr);
@@ -462,24 +467,13 @@ void Renderer::CreateTextureImage()
 		return;
 	}
 
-	VkBuffer staging_buffer;
-	VkDeviceMemory staging_buffer_memory;
-
-	// Create a staging buffer
-	CreateBuffer(
-		image_size,
-		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		staging_buffer,
-		staging_buffer_memory,
-		m_device.GetLogicalDeviceNative(),
-		m_device.GetPhysicalDeviceNative());
+	auto staging_buffer = m_memory_manager.AllocateBuffer(m_device.GetLogicalDeviceNative(), m_device.GetPhysicalDeviceNative(), image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 	// Copy image data to the staging buffer
-	void* buffer_data;
-	vkMapMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory, 0, image_size, 0, &buffer_data);
-	memcpy(buffer_data, pixel_data, static_cast<size_t>(image_size));
-	vkUnmapMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory);
+	staging_buffer.Map(m_device.GetLogicalDeviceNative());
+	auto buffer_data_ptr = staging_buffer.Data();
+	memcpy(buffer_data_ptr, pixel_data, static_cast<size_t>(image_size));
+	staging_buffer.UnMap(m_device.GetLogicalDeviceNative());
 
 	// Image data has been saved, no need to keep it around anymore
 	stbi_image_free(pixel_data);
@@ -504,7 +498,7 @@ void Renderer::CreateTextureImage()
 	VkMemoryAllocateInfo alloc_info = {};
 	alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	alloc_info.allocationSize = memory_requirements.size;
-	alloc_info.memoryTypeIndex = vk_wrapper::func::FindMemoryType(
+	alloc_info.memoryTypeIndex = vk_wrapper::func::FindMemoryTypeIndex(
 		memory_requirements.memoryTypeBits,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 		m_device.GetPhysicalDeviceNative());
@@ -539,7 +533,7 @@ void Renderer::CreateTextureImage()
 		m_device,
 		m_graphics_command_pool,
 		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
-		staging_buffer,
+		staging_buffer.Buffer(),
 		m_texture_image,
 		static_cast<std::uint32_t>(width),
 		static_cast<std::uint32_t>(height));
@@ -554,8 +548,7 @@ void Renderer::CreateTextureImage()
 		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	// Delete the staging buffer
-	vkDestroyBuffer(m_device.GetLogicalDeviceNative(), staging_buffer, nullptr);
-	vkFreeMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory, nullptr);
+	staging_buffer.Deallocate();
 }
 
 void Renderer::CreateTextureImageView()
@@ -1024,7 +1017,7 @@ void Renderer::CreateBuffer(
 	VkMemoryAllocateInfo allocation_info = {};
 	allocation_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	allocation_info.allocationSize = memory_requirements.size;
-	allocation_info.memoryTypeIndex = vk_wrapper::func::FindMemoryType(
+	allocation_info.memoryTypeIndex = vk_wrapper::func::FindMemoryTypeIndex(
 		memory_requirements.memoryTypeBits,
 		properties,
 		physical_device);

@@ -1,12 +1,13 @@
 #pragma once
 
 // Application Vulkan wrappers
+#include "memory_manager/memory_manager.hpp"
 #include "vulkan_wrapper/vulkan_debug_messenger.hpp"
 #include "vulkan_wrapper/vulkan_device.hpp"
 #include "vulkan_wrapper/vulkan_instance.hpp"
-#include "vulkan_wrapper/vulkan_swapchain.hpp"
 #include "vulkan_wrapper/vulkan_pipeline.hpp"
 #include "vulkan_wrapper/vulkan_render_pass.hpp"
+#include "vulkan_wrapper/vulkan_swapchain.hpp"
 
 // Application core
 #include "core/window.hpp"
@@ -131,5 +132,7 @@ namespace vkc
 		vk_wrapper::VulkanDevice m_device;
 		vk_wrapper::VulkanPipeline m_graphics_pipeline;
 		vk_wrapper::VulkanRenderPass m_render_pass;
+
+		memory::MemoryManager m_memory_manager;
 	};
 }

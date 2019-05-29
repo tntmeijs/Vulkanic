@@ -26,6 +26,25 @@ namespace vkc::exception
 		std::string m_message;
 	};
 
+	/** Execution should be halted, GPU (block) ran out of memory */
+	/**
+	 * When this exception is thrown, it means that the GPU memory manager could
+	 * not allocate enough memory to store the data. Whenever this happens, the
+	 * user should change the program in such a way that the GPU will not run out
+	 * of memory in the future.
+	 */
+	class GPUOutOfMemoryError : public std::exception
+	{
+	public:
+		GPUOutOfMemoryError(std::string message = "") : m_message(message) {}
+		~GPUOutOfMemoryError() = default;
+
+		std::string what() { return m_message.c_str(); }
+
+	private:
+		std::string m_message;
+	};
+
 	/** Execution should be halted, critical error when reading from disc */
 	/**
 	 * When this exception is thrown, it means that an IO function call failed.
