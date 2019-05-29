@@ -504,7 +504,7 @@ void Renderer::CreateTextureImage()
 	// Transition the image so it can be used as a transfer destination
 	TransitionImageLayout(
 		m_device,
-		m_graphics_command_pool.GetNative(),
+		m_graphics_command_pool,
 		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
 		m_texture_image,
 		VK_IMAGE_LAYOUT_UNDEFINED,
@@ -513,7 +513,7 @@ void Renderer::CreateTextureImage()
 	// Perform the buffer to image data transfer
 	CopyBufferToImage(
 		m_device,
-		m_graphics_command_pool.GetNative(),
+		m_graphics_command_pool,
 		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
 		staging_buffer.Buffer(),
 		m_texture_image,
@@ -523,7 +523,7 @@ void Renderer::CreateTextureImage()
 	// Transition the image so it can be used to read from in a shader
 	TransitionImageLayout(
 		m_device,
-		m_graphics_command_pool.GetNative(),
+		m_graphics_command_pool,
 		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
 		m_texture_image,
 		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -794,7 +794,7 @@ void Renderer::CreateVertexBuffer()
 		&staging_buffer,
 		m_vertex_buffer.get(),
 		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
-		m_graphics_command_pool.GetNative());
+		m_graphics_command_pool);
 
 	// Clean up the staging buffer since it is no longer needed
 	staging_buffer.Deallocate();
@@ -932,9 +932,11 @@ void Renderer::CopyStagingBufferToDeviceLocalBuffer(
 	const memory::VirtualBuffer* const  source,
 	const memory::VirtualBuffer* const destination,
 	const VkQueue& queue,
-	const VkCommandPool pool)
+	const vk_wrapper::VulkanCommandPool& pool)
 {
-	auto cmd_buffer = BeginSingleTimeCommands(pool, device);
+	vk_wrapper::VulkanCommandBuffer cmd_buffer;
+	cmd_buffer.Create(device, pool, 1);
+	cmd_buffer.BeginRecording(vk_wrapper::CommandBufferUsage::OneTimeSubmit);
 
 	VkBufferCopy copy_region = {};
 	copy_region.srcOffset = source->Offset();
@@ -942,63 +944,28 @@ void Renderer::CopyStagingBufferToDeviceLocalBuffer(
 	copy_region.dstOffset = destination->Offset();
 
 	// Issue a command that copies the staging buffer to the destination buffer
-	vkCmdCopyBuffer(cmd_buffer, source->Buffer(), destination->Buffer(), 1, &copy_region);
-
-	EndSingleTimeCommands(device, pool, cmd_buffer, queue);
-}
-
-VkCommandBuffer vkc::Renderer::BeginSingleTimeCommands(const VkCommandPool& pool, const vk_wrapper::VulkanDevice& device)
-{
-	VkCommandBufferAllocateInfo allocate_info = {};
-	allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-	allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-	allocate_info.commandBufferCount = 1;
-	allocate_info.commandPool = pool;
-
-	VkCommandBuffer cmd_buffer;
-	vkAllocateCommandBuffers(device.GetLogicalDeviceNative(), &allocate_info, &cmd_buffer);
-
-	VkCommandBufferBeginInfo begin_info = {};
-	begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-	begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
-
-	// Begin recording to the command buffer
-	vkBeginCommandBuffer(cmd_buffer, &begin_info);
-
-	return cmd_buffer;
-}
-
-void vkc::Renderer::EndSingleTimeCommands(
-	const vk_wrapper::VulkanDevice& device,
-	const VkCommandPool& pool,
-	const VkCommandBuffer& cmd_buffer,
-	const VkQueue& queue)
-{
-	// End recording to the command buffer
-	vkEndCommandBuffer(cmd_buffer);
-
-	// Upload the staging buffer to the GPU by executing the transfer command buffer
-	VkSubmitInfo submit_info = {};
-	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
-	submit_info.commandBufferCount = 1;
-	submit_info.pCommandBuffers = &cmd_buffer;
-
+	vkCmdCopyBuffer(cmd_buffer.GetNative(), source->Buffer(), destination->Buffer(), 1, &copy_region);
+	
 	// Execute the commands
-	vkQueueSubmit(queue, 1, &submit_info, VK_NULL_HANDLE);
+	cmd_buffer.StopRecording();
+	cmd_buffer.Submit(queue);
 	vkQueueWaitIdle(queue);
 
-	vkFreeCommandBuffers(device.GetLogicalDeviceNative(), pool, 1, &cmd_buffer);
+	// No longer need the command buffer to stick around
+	cmd_buffer.Destroy(device, pool);
 }
 
 void Renderer::TransitionImageLayout(
 	const vk_wrapper::VulkanDevice& device,
-	const VkCommandPool& pool,
+	const vk_wrapper::VulkanCommandPool& pool,
 	const VkQueue& queue,
 	const VkImage& image,
 	const VkImageLayout& current_layout,
 	const VkImageLayout& new_layout)
 {
-	auto cmd_buffer = BeginSingleTimeCommands(pool, device);
+	vk_wrapper::VulkanCommandBuffer cmd_buffer;
+	cmd_buffer.Create(device, pool, 1);
+	cmd_buffer.BeginRecording(vk_wrapper::CommandBufferUsage::OneTimeSubmit);
 
 	VkPipelineStageFlags source_stage;
 	VkPipelineStageFlags destination_stage;
@@ -1039,7 +1006,7 @@ void Renderer::TransitionImageLayout(
 	}
 
 	vkCmdPipelineBarrier(
-		cmd_buffer,
+		cmd_buffer.GetNative(),
 		source_stage,
 		destination_stage,
 		0,			// Flags
@@ -1050,19 +1017,27 @@ void Renderer::TransitionImageLayout(
 		1,			// One image memory barrier
 		&barrier);
 
-	EndSingleTimeCommands(device, pool, cmd_buffer, queue);
+	// Execute the commands
+	cmd_buffer.StopRecording();
+	cmd_buffer.Submit(queue);
+	vkQueueWaitIdle(queue);
+
+	// No longer need the command buffer to stick around
+	cmd_buffer.Destroy(device, pool);
 }
 
 void Renderer::CopyBufferToImage(
 	const vk_wrapper::VulkanDevice& device,
-	const VkCommandPool& pool,
+	const vk_wrapper::VulkanCommandPool& pool,
 	const VkQueue& queue,
 	const VkBuffer& buffer,
 	const VkImage& image,
 	std::uint32_t width,
 	std::uint32_t height)
 {
-	auto cmd_buffer = BeginSingleTimeCommands(pool, device);
+	vk_wrapper::VulkanCommandBuffer cmd_buffer;
+	cmd_buffer.Create(device, pool, 1);
+	cmd_buffer.BeginRecording(vk_wrapper::CommandBufferUsage::OneTimeSubmit);
 
 	VkBufferImageCopy region = {};
 	
@@ -1082,7 +1057,13 @@ void Renderer::CopyBufferToImage(
 	region.imageExtent = { width, height, 1 };
 
 	// Queue the copy operation
-	vkCmdCopyBufferToImage(cmd_buffer, buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
+	vkCmdCopyBufferToImage(cmd_buffer.GetNative(), buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
 
-	EndSingleTimeCommands(device, pool, cmd_buffer, queue);
+	// Execute the commands
+	cmd_buffer.StopRecording();
+	cmd_buffer.Submit(queue);
+	vkQueueWaitIdle(queue);
+
+	// No longer need the command buffer to stick around
+	cmd_buffer.Destroy(device, pool);
 }

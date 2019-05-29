@@ -65,21 +65,11 @@ namespace vkc
 			const memory::VirtualBuffer* const  source,
 			const memory::VirtualBuffer* const destination,
 			const VkQueue& queue,
-			const VkCommandPool pool);
-
-		static VkCommandBuffer BeginSingleTimeCommands(
-			const VkCommandPool& pool,
-			const vk_wrapper::VulkanDevice& device);
-
-		static void EndSingleTimeCommands(
-			const vk_wrapper::VulkanDevice& device,
-			const VkCommandPool& pool,
-			const VkCommandBuffer& cmd_buffer,
-			const VkQueue& queue);
+			const vk_wrapper::VulkanCommandPool& pool);
 
 		static void TransitionImageLayout(
 			const vk_wrapper::VulkanDevice& device,
-			const VkCommandPool& pool,
+			const vk_wrapper::VulkanCommandPool& pool,
 			const VkQueue& queue,
 			const VkImage& image,
 			const VkImageLayout& current_layout,
@@ -87,7 +77,7 @@ namespace vkc
 
 		static void CopyBufferToImage(
 			const vk_wrapper::VulkanDevice& device,
-			const VkCommandPool& pool,
+			const vk_wrapper::VulkanCommandPool& pool,
 			const VkQueue& queue,
 			const VkBuffer& buffer,
 			const VkImage& image,
