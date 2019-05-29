@@ -107,16 +107,14 @@ Renderer::~Renderer()
 
 	CleanUpSwapchain();
 
-	m_memory_manager.Destroy();
-
 	vkDestroySampler(m_device.GetLogicalDeviceNative(), m_texture_sampler, nullptr);
 	vkDestroyImageView(m_device.GetLogicalDeviceNative(), m_texture_image_view, nullptr);
 	vkDestroyImage(m_device.GetLogicalDeviceNative(), m_texture_image, nullptr);
 	vkFreeMemory(m_device.GetLogicalDeviceNative(), m_texture_image_memory, nullptr);
 
 	vkDestroyDescriptorSetLayout(m_device.GetLogicalDeviceNative(), m_camera_data_descriptor_set_layout, nullptr);
-	vkDestroyBuffer(m_device.GetLogicalDeviceNative(), m_vertex_buffer, nullptr);
-	vkFreeMemory(m_device.GetLogicalDeviceNative(), m_vertex_buffer_memory, nullptr);
+
+	m_vertex_buffer->Deallocate();
 
 	for (auto index = 0; index < global_settings::maximum_in_flight_frame_count; ++index)
 	{
@@ -130,7 +128,10 @@ Renderer::~Renderer()
 	}
 	
 	vkDestroyCommandPool(m_device.GetLogicalDeviceNative(), m_graphics_command_pool, nullptr);
-	
+
+	// Clean-up all memory chunks
+	m_memory_manager.Destroy();
+
 	m_device.Destroy();
 
 #ifdef _DEBUG
@@ -659,7 +660,7 @@ void Renderer::CreateCommandBuffers()
 		vkCmdBindPipeline(m_command_buffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics_pipeline.GetNative());
 
 		// Bind the triangle vertex buffer
-		VkBuffer vertex_buffers[] = { m_vertex_buffer };
+		VkBuffer vertex_buffers[] = { m_vertex_buffer->Buffer() };
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(m_command_buffers[index], 0, 1, vertex_buffers, offsets);
 
@@ -813,48 +814,37 @@ void Renderer::CreateVertexBuffer()
 {
 	VkDeviceSize buffer_size = sizeof(Vertex) * vertices.size();
 
-	VkBuffer staging_buffer;
-	VkDeviceMemory staging_buffer_memory;
-
-	// Create a staging buffer
-	CreateBuffer(
+	// Create a staging buffer (CPU-visible)
+	auto staging_buffer = m_memory_manager.AllocateBuffer(
+		m_device.GetLogicalDeviceNative(),
+		m_device.GetPhysicalDeviceNative(),
 		buffer_size,
 		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		staging_buffer,
-		staging_buffer_memory,
-		m_device.GetLogicalDeviceNative(),
-		m_device.GetPhysicalDeviceNative());
-
-	void* data = nullptr;
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 	
 	// Copy the data to a staging buffer
-	vkMapMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory, 0, buffer_size, 0, &data);
-	memcpy(data, vertices.data(), static_cast<size_t>(buffer_size));
-	vkUnmapMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory);
+	staging_buffer.Map(m_device.GetLogicalDeviceNative());
+	memcpy(staging_buffer.Data(), vertices.data(), static_cast<size_t>(buffer_size));
+	staging_buffer.UnMap(m_device.GetLogicalDeviceNative());
 
-	// Create a device local buffer to hold the vertex data in GPU memory
-	CreateBuffer(
+	// Create the GPU-visible vertex buffer
+	m_vertex_buffer = std::make_unique<memory::VirtualBuffer>(m_memory_manager.AllocateBuffer(
+		m_device.GetLogicalDeviceNative(),
+		m_device.GetPhysicalDeviceNative(),
 		buffer_size,
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		m_vertex_buffer,
-		m_vertex_buffer_memory,
-		m_device.GetLogicalDeviceNative(),
-		m_device.GetPhysicalDeviceNative());
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
 
 	// Copy the staging buffer to the GPU visible buffer
 	CopyStagingBufferToDeviceLocalBuffer(
 		m_device,
-		staging_buffer,
-		m_vertex_buffer,
-		buffer_size,
+		&staging_buffer,
+		m_vertex_buffer.get(),
 		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
 		m_graphics_command_pool);
 
 	// Clean up the staging buffer since it is no longer needed
-	vkDestroyBuffer(m_device.GetLogicalDeviceNative(), staging_buffer, nullptr);
-	vkFreeMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory, nullptr);
+	staging_buffer.Deallocate();
 }
 
 void Renderer::CreateUniformBuffers()
@@ -984,63 +974,22 @@ void Renderer::CreateDescriptorSets()
 	}
 }
 
-void Renderer::CreateBuffer(
-	VkDeviceSize size,
-	VkBufferUsageFlags usage,
-	VkMemoryPropertyFlags properties,
-	VkBuffer& buffer,
-	VkDeviceMemory& buffer_memory,
-	const VkDevice& device,
-	const VkPhysicalDevice physical_device)
-{
-	VkBufferCreateInfo buffer_info = {};
-	buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	buffer_info.size = size;
-	buffer_info.usage = usage;
-	buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	if (vkCreateBuffer(device, &buffer_info, nullptr, &buffer) != VK_SUCCESS)
-	{
-		spdlog::error("Could not create a vertex buffer.");
-		return;
-	}
-
-	VkMemoryRequirements memory_requirements;
-	vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
-
-	VkMemoryAllocateInfo allocation_info = {};
-	allocation_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocation_info.allocationSize = memory_requirements.size;
-	allocation_info.memoryTypeIndex = vk_wrapper::func::FindMemoryTypeIndex(
-		memory_requirements.memoryTypeBits,
-		properties,
-		physical_device);
-
-	if (vkAllocateMemory(device, &allocation_info, nullptr, &buffer_memory) != VK_SUCCESS)
-	{
-		spdlog::error("Could not allocate memory for the vertex buffer.");
-		return;
-	}
-
-	// Associate the memory with the buffer
-	vkBindBufferMemory(device, buffer, buffer_memory, 0);
-}
-
 void Renderer::CopyStagingBufferToDeviceLocalBuffer(
 	const vk_wrapper::VulkanDevice& device,
-	const VkBuffer& source,
-	const VkBuffer& destination,
-	VkDeviceSize size,
+	const memory::VirtualBuffer* const  source,
+	const memory::VirtualBuffer* const destination,
 	const VkQueue& queue,
 	const VkCommandPool pool)
 {
 	auto cmd_buffer = BeginSingleTimeCommands(pool, device);
 
 	VkBufferCopy copy_region = {};
-	copy_region.size = size;
+	copy_region.srcOffset = source->Offset();
+	copy_region.size = source->Size();
+	copy_region.dstOffset = destination->Offset();
 
 	// Issue a command that copies the staging buffer to the destination buffer
-	vkCmdCopyBuffer(cmd_buffer, source, destination, 1, &copy_region);
+	vkCmdCopyBuffer(cmd_buffer, source->Buffer(), destination->Buffer(), 1, &copy_region);
 
 	EndSingleTimeCommands(device, pool, cmd_buffer, queue);
 }

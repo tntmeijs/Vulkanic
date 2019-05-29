@@ -62,7 +62,6 @@ namespace vkc::memory
 		MemoryBlock* const m_parent_block;
 		std::uint32_t m_offset;
 		std::uint32_t m_size;
-		std::uint32_t m_id;
 		void* m_data;
 		uuids::uuid m_uuid;
 	};

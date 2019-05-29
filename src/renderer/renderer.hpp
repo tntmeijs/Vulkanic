@@ -21,6 +21,7 @@
 //////////////////////////////////////////////////////////////////////////
 
 // C++ standard
+#include <memory>
 #include <optional>
 #include <vector>
 
@@ -58,20 +59,10 @@ namespace vkc
 		void CreateDescriptorSetLayout();
 		void CreateDescriptorSets();
 		
-		static void CreateBuffer(
-			VkDeviceSize size,
-			VkBufferUsageFlags usage,
-			VkMemoryPropertyFlags properties,
-			VkBuffer& buffer,
-			VkDeviceMemory& buffer_memory,
-			const VkDevice& device,
-			const VkPhysicalDevice physical_device);
-
 		static void CopyStagingBufferToDeviceLocalBuffer(
 			const vk_wrapper::VulkanDevice& device,
-			const VkBuffer& source,
-			const VkBuffer& destination,
-			VkDeviceSize size,
+			const memory::VirtualBuffer* const  source,
+			const memory::VirtualBuffer* const destination,
 			const VkQueue& queue,
 			const VkCommandPool pool);
 
@@ -112,14 +103,13 @@ namespace vkc
 		VkDescriptorSetLayout m_camera_data_descriptor_set_layout;
 		VkPipelineLayout m_pipeline_layout;
 		VkCommandPool m_graphics_command_pool;
-		VkBuffer m_vertex_buffer;
-		VkDeviceMemory m_vertex_buffer_memory;
 		VkDescriptorPool m_descriptor_pool;
 		VkImage m_texture_image;
 		VkDeviceMemory m_texture_image_memory;
 		VkImageView m_texture_image_view;
 		VkSampler m_texture_sampler;
 
+		std::unique_ptr<memory::VirtualBuffer> m_vertex_buffer;
 		std::vector<memory::VirtualBuffer> m_camera_ubos;
 
 		std::vector<VkFramebuffer> m_swapchain_framebuffers;
