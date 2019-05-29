@@ -1,7 +1,8 @@
 set(MISCELLANEOUS_FILES
     miscellaneous/global_settings.hpp
     miscellaneous/exceptions.hpp
-    miscellaneous/stb_defines.hpp)
+    miscellaneous/stb_defines.hpp
+    miscellaneous/vulkanic_literals.hpp)
 
 set(CORE_FILES
     core/window.cpp
@@ -12,6 +13,16 @@ set(CORE_FILES
 set(RENDERER_FILES
     renderer/renderer.cpp
     renderer/renderer.hpp)
+
+set(MEMORY_MANAGER_FILES
+    renderer/memory_manager/virtual_buffer.cpp
+    renderer/memory_manager/virtual_buffer.hpp
+    renderer/memory_manager/memory_chunk.cpp
+    renderer/memory_manager/memory_chunk.hpp
+    renderer/memory_manager/memory_block.cpp
+    renderer/memory_manager/memory_block.hpp
+    renderer/memory_manager/memory_manager.cpp
+    renderer/memory_manager/memory_manager.hpp)
 
 set(VULKAN_WRAPPER_FILES
     renderer/vulkan_wrapper/vulkan_utility.hpp
@@ -47,7 +58,8 @@ add_executable(
     ${MISCELLANEOUS_FILES}
     ${CORE_FILES}
     ${RENDERER_FILES}
-    ${VULKAN_WRAPPER_FILES})
+    ${VULKAN_WRAPPER_FILES}
+    ${MEMORY_MANAGER_FILES})
 
 target_link_libraries(${PROJECT_NAME} Vulkan::Vulkan)
 
@@ -57,3 +69,4 @@ source_group("miscellaneous" FILES ${MISCELLANEOUS_FILES})
 source_group("core" FILES ${CORE_FILES})
 source_group("renderer" FILES ${RENDERER_FILES})
 source_group("vulkan_wrapper" FILES ${VULKAN_WRAPPER_FILES})
+source_group("memory_manager" FILES ${MEMORY_MANAGER_FILES})

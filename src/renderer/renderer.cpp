@@ -6,6 +6,7 @@
 #include "vulkan_wrapper/vulkan_enums.hpp"
 #include "vulkan_wrapper/vulkan_structures.hpp"
 #include "vulkan_wrapper/vulkan_functions.hpp"
+#include "miscellaneous/vulkanic_literals.hpp"
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -96,6 +97,7 @@ Renderer::Renderer()
 	: m_frame_index(0)
 	, m_current_swapchain_image_index(0)
 	, m_framebuffer_resized(false)
+	, m_memory_manager(static_cast<std::uint32_t>(64_MB))
 {}
 
 Renderer::~Renderer()
@@ -111,8 +113,8 @@ Renderer::~Renderer()
 	vkFreeMemory(m_device.GetLogicalDeviceNative(), m_texture_image_memory, nullptr);
 
 	vkDestroyDescriptorSetLayout(m_device.GetLogicalDeviceNative(), m_camera_data_descriptor_set_layout, nullptr);
-	vkDestroyBuffer(m_device.GetLogicalDeviceNative(), m_vertex_buffer, nullptr);
-	vkFreeMemory(m_device.GetLogicalDeviceNative(), m_vertex_buffer_memory, nullptr);
+
+	m_vertex_buffer->Deallocate();
 
 	for (auto index = 0; index < global_settings::maximum_in_flight_frame_count; ++index)
 	{
@@ -126,7 +128,10 @@ Renderer::~Renderer()
 	}
 	
 	vkDestroyCommandPool(m_device.GetLogicalDeviceNative(), m_graphics_command_pool, nullptr);
-	
+
+	// Clean-up all memory chunks
+	m_memory_manager.Destroy();
+
 	m_device.Destroy();
 
 #ifdef _DEBUG
@@ -326,10 +331,9 @@ void Renderer::Update()
 		0.1f,
 		1000.0f);
 
-	void* data = nullptr;
-	vkMapMemory(m_device.GetLogicalDeviceNative(), m_camera_ubos_memory[m_current_swapchain_image_index], 0, sizeof(cam_data), 0, &data);
-	memcpy(data, &cam_data, sizeof(cam_data));
-	vkUnmapMemory(m_device.GetLogicalDeviceNative(), m_camera_ubos_memory[m_current_swapchain_image_index]);
+	m_camera_ubos[m_current_swapchain_image_index].Map(m_device.GetLogicalDeviceNative());
+	memcpy(m_camera_ubos[m_current_swapchain_image_index].Data(), &cam_data, sizeof(cam_data));
+	m_camera_ubos[m_current_swapchain_image_index].UnMap(m_device.GetLogicalDeviceNative());
 }
 
 void Renderer::TriggerFramebufferResized()
@@ -462,24 +466,13 @@ void Renderer::CreateTextureImage()
 		return;
 	}
 
-	VkBuffer staging_buffer;
-	VkDeviceMemory staging_buffer_memory;
-
-	// Create a staging buffer
-	CreateBuffer(
-		image_size,
-		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		staging_buffer,
-		staging_buffer_memory,
-		m_device.GetLogicalDeviceNative(),
-		m_device.GetPhysicalDeviceNative());
+	auto staging_buffer = m_memory_manager.AllocateBuffer(m_device.GetLogicalDeviceNative(), m_device.GetPhysicalDeviceNative(), image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 
 	// Copy image data to the staging buffer
-	void* buffer_data;
-	vkMapMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory, 0, image_size, 0, &buffer_data);
-	memcpy(buffer_data, pixel_data, static_cast<size_t>(image_size));
-	vkUnmapMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory);
+	staging_buffer.Map(m_device.GetLogicalDeviceNative());
+	auto buffer_data_ptr = staging_buffer.Data();
+	memcpy(buffer_data_ptr, pixel_data, static_cast<size_t>(image_size));
+	staging_buffer.UnMap(m_device.GetLogicalDeviceNative());
 
 	// Image data has been saved, no need to keep it around anymore
 	stbi_image_free(pixel_data);
@@ -504,7 +497,7 @@ void Renderer::CreateTextureImage()
 	VkMemoryAllocateInfo alloc_info = {};
 	alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
 	alloc_info.allocationSize = memory_requirements.size;
-	alloc_info.memoryTypeIndex = vk_wrapper::func::FindMemoryType(
+	alloc_info.memoryTypeIndex = vk_wrapper::func::FindMemoryTypeIndex(
 		memory_requirements.memoryTypeBits,
 		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
 		m_device.GetPhysicalDeviceNative());
@@ -539,7 +532,7 @@ void Renderer::CreateTextureImage()
 		m_device,
 		m_graphics_command_pool,
 		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
-		staging_buffer,
+		staging_buffer.Buffer(),
 		m_texture_image,
 		static_cast<std::uint32_t>(width),
 		static_cast<std::uint32_t>(height));
@@ -554,8 +547,7 @@ void Renderer::CreateTextureImage()
 		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	// Delete the staging buffer
-	vkDestroyBuffer(m_device.GetLogicalDeviceNative(), staging_buffer, nullptr);
-	vkFreeMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory, nullptr);
+	staging_buffer.Deallocate();
 }
 
 void Renderer::CreateTextureImageView()
@@ -668,7 +660,7 @@ void Renderer::CreateCommandBuffers()
 		vkCmdBindPipeline(m_command_buffers[index], VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics_pipeline.GetNative());
 
 		// Bind the triangle vertex buffer
-		VkBuffer vertex_buffers[] = { m_vertex_buffer };
+		VkBuffer vertex_buffers[] = { m_vertex_buffer->Buffer() };
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(m_command_buffers[index], 0, 1, vertex_buffers, offsets);
 
@@ -803,8 +795,7 @@ void Renderer::CleanUpSwapchain()
 	for (auto index = 0; index < m_swapchain.GetImages().size(); ++index)
 	{
 		vkDestroyFramebuffer(m_device.GetLogicalDeviceNative(), m_swapchain_framebuffers[index], nullptr);
-		vkDestroyBuffer(m_device.GetLogicalDeviceNative(), m_camera_ubos[index], nullptr);
-		vkFreeMemory(m_device.GetLogicalDeviceNative(), m_camera_ubos_memory[index], nullptr);
+		m_camera_ubos[index].Deallocate();
 	}
 
 	vkDestroyDescriptorPool(m_device.GetLogicalDeviceNative(), m_descriptor_pool, nullptr);
@@ -823,68 +814,54 @@ void Renderer::CreateVertexBuffer()
 {
 	VkDeviceSize buffer_size = sizeof(Vertex) * vertices.size();
 
-	VkBuffer staging_buffer;
-	VkDeviceMemory staging_buffer_memory;
-
-	// Create a staging buffer
-	CreateBuffer(
+	// Create a staging buffer (CPU-visible)
+	auto staging_buffer = m_memory_manager.AllocateBuffer(
+		m_device.GetLogicalDeviceNative(),
+		m_device.GetPhysicalDeviceNative(),
 		buffer_size,
 		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-		staging_buffer,
-		staging_buffer_memory,
-		m_device.GetLogicalDeviceNative(),
-		m_device.GetPhysicalDeviceNative());
-
-	void* data = nullptr;
+		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
 	
 	// Copy the data to a staging buffer
-	vkMapMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory, 0, buffer_size, 0, &data);
-	memcpy(data, vertices.data(), static_cast<size_t>(buffer_size));
-	vkUnmapMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory);
+	staging_buffer.Map(m_device.GetLogicalDeviceNative());
+	memcpy(staging_buffer.Data(), vertices.data(), static_cast<size_t>(buffer_size));
+	staging_buffer.UnMap(m_device.GetLogicalDeviceNative());
 
-	// Create a device local buffer to hold the vertex data in GPU memory
-	CreateBuffer(
+	// Create the GPU-visible vertex buffer
+	m_vertex_buffer = std::make_unique<memory::VirtualBuffer>(m_memory_manager.AllocateBuffer(
+		m_device.GetLogicalDeviceNative(),
+		m_device.GetPhysicalDeviceNative(),
 		buffer_size,
 		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		m_vertex_buffer,
-		m_vertex_buffer_memory,
-		m_device.GetLogicalDeviceNative(),
-		m_device.GetPhysicalDeviceNative());
+		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
 
 	// Copy the staging buffer to the GPU visible buffer
 	CopyStagingBufferToDeviceLocalBuffer(
 		m_device,
-		staging_buffer,
-		m_vertex_buffer,
-		buffer_size,
+		&staging_buffer,
+		m_vertex_buffer.get(),
 		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
 		m_graphics_command_pool);
 
 	// Clean up the staging buffer since it is no longer needed
-	vkDestroyBuffer(m_device.GetLogicalDeviceNative(), staging_buffer, nullptr);
-	vkFreeMemory(m_device.GetLogicalDeviceNative(), staging_buffer_memory, nullptr);
+	staging_buffer.Deallocate();
 }
 
 void Renderer::CreateUniformBuffers()
 {
 	VkDeviceSize ubo_size = sizeof(CameraData);
 
-	m_camera_ubos.resize(m_swapchain.GetImages().size());
-	m_camera_ubos_memory.resize(m_swapchain.GetImages().size());
+	m_camera_ubos.reserve(m_swapchain.GetImages().size());
 
 	// Create a camera data UBO for each image in the swapchain
 	for (auto index = 0; index < m_swapchain.GetImages().size(); ++index)
 	{
-		CreateBuffer(
+		m_camera_ubos.push_back(m_memory_manager.AllocateBuffer(
+			m_device.GetLogicalDeviceNative(),
+			m_device.GetPhysicalDeviceNative(),
 			ubo_size,
 			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-			m_camera_ubos[index],
-			m_camera_ubos_memory[index],
-			m_device.GetLogicalDeviceNative(),
-			m_device.GetPhysicalDeviceNative());
+			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT));
 	}
 }
 
@@ -961,7 +938,7 @@ void Renderer::CreateDescriptorSets()
 	for (auto index = 0; index < m_swapchain.GetImages().size(); ++index)
 	{
 		VkDescriptorBufferInfo buffer_info = {};
-		buffer_info.buffer = m_camera_ubos[index];
+		buffer_info.buffer = m_camera_ubos[index].Buffer();
 		buffer_info.offset = 0;
 		buffer_info.range = sizeof(CameraData);
 
@@ -997,63 +974,22 @@ void Renderer::CreateDescriptorSets()
 	}
 }
 
-void Renderer::CreateBuffer(
-	VkDeviceSize size,
-	VkBufferUsageFlags usage,
-	VkMemoryPropertyFlags properties,
-	VkBuffer& buffer,
-	VkDeviceMemory& buffer_memory,
-	const VkDevice& device,
-	const VkPhysicalDevice physical_device)
-{
-	VkBufferCreateInfo buffer_info = {};
-	buffer_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	buffer_info.size = size;
-	buffer_info.usage = usage;
-	buffer_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	if (vkCreateBuffer(device, &buffer_info, nullptr, &buffer) != VK_SUCCESS)
-	{
-		spdlog::error("Could not create a vertex buffer.");
-		return;
-	}
-
-	VkMemoryRequirements memory_requirements;
-	vkGetBufferMemoryRequirements(device, buffer, &memory_requirements);
-
-	VkMemoryAllocateInfo allocation_info = {};
-	allocation_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	allocation_info.allocationSize = memory_requirements.size;
-	allocation_info.memoryTypeIndex = vk_wrapper::func::FindMemoryType(
-		memory_requirements.memoryTypeBits,
-		properties,
-		physical_device);
-
-	if (vkAllocateMemory(device, &allocation_info, nullptr, &buffer_memory) != VK_SUCCESS)
-	{
-		spdlog::error("Could not allocate memory for the vertex buffer.");
-		return;
-	}
-
-	// Associate the memory with the buffer
-	vkBindBufferMemory(device, buffer, buffer_memory, 0);
-}
-
 void Renderer::CopyStagingBufferToDeviceLocalBuffer(
 	const vk_wrapper::VulkanDevice& device,
-	const VkBuffer& source,
-	const VkBuffer& destination,
-	VkDeviceSize size,
+	const memory::VirtualBuffer* const  source,
+	const memory::VirtualBuffer* const destination,
 	const VkQueue& queue,
 	const VkCommandPool pool)
 {
 	auto cmd_buffer = BeginSingleTimeCommands(pool, device);
 
 	VkBufferCopy copy_region = {};
-	copy_region.size = size;
+	copy_region.srcOffset = source->Offset();
+	copy_region.size = source->Size();
+	copy_region.dstOffset = destination->Offset();
 
 	// Issue a command that copies the staging buffer to the destination buffer
-	vkCmdCopyBuffer(cmd_buffer, source, destination, 1, &copy_region);
+	vkCmdCopyBuffer(cmd_buffer, source->Buffer(), destination->Buffer(), 1, &copy_region);
 
 	EndSingleTimeCommands(device, pool, cmd_buffer, queue);
 }
