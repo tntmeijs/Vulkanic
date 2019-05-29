@@ -15,8 +15,8 @@ namespace vkc::global_settings
 	// Window dimensions, application name, engine name, window title, etc.
 	//////////////////////////////////////////////////////////////////////////
 
-	static const constexpr std::uint32_t default_window_width	= 1280;
-	static const constexpr std::uint32_t default_window_height	= 720;
+	static const constexpr std::uint32_t default_window_width	= 2560;
+	static const constexpr std::uint32_t default_window_height	= 1440;
 
 	static const constexpr char* window_title		= "Vulkanic Renderer | Tahar Meijs";
 	static const constexpr char* application_name	= "Vulkanic Renderer";
