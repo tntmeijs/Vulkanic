@@ -52,7 +52,7 @@ const VkCommandBuffer& VulkanCommandBuffer::GetNative() const noexcept(false)
 
 const VkCommandBuffer& VulkanCommandBuffer::GetNative(std::uint32_t index) const noexcept(false)
 {
-	// Throws and out of range exception if the specified index is invalid
+	// Throws an out of range exception if the specified index is invalid
 	return m_command_buffers[index];
 }
 
@@ -77,7 +77,7 @@ void VulkanCommandBuffer::BeginRecording(std::uint32_t index, CommandBufferUsage
 	info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
 	info.flags = static_cast<VkCommandBufferUsageFlags>(usage);
 
-	// Throws and out of range exception if the specified index is invalid
+	// Throws an out of range exception if the specified index is invalid
 	auto result = vkBeginCommandBuffer(m_command_buffers[index], &info);
 
 	if (result != VK_SUCCESS)
@@ -99,11 +99,32 @@ void VulkanCommandBuffer::StopRecording() const noexcept(false)
 
 void VulkanCommandBuffer::StopRecording(std::uint32_t index) const noexcept(false)
 {
-	// Throws and out of range exception if the specified index is invalid
+	// Throws an out of range exception if the specified index is invalid
 	auto result = vkEndCommandBuffer(m_command_buffers[index]);
 
 	if (result != VK_SUCCESS)
 	{
 		throw CriticalVulkanError("Recording to command buffer failed.");
 	}
+}
+
+void VulkanCommandBuffer::Submit(const VkQueue& queue) const noexcept(true)
+{
+	VkSubmitInfo submit_info = {};
+	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submit_info.commandBufferCount = 1;
+	submit_info.pCommandBuffers = &m_command_buffers[0];
+
+	vkQueueSubmit(queue, 1, &submit_info, VK_NULL_HANDLE);
+}
+
+void vkc::vk_wrapper::VulkanCommandBuffer::Submit(std::uint32_t index, const VkQueue& queue)
+{
+	// Throws and out of range exception if the specified index is invalid
+	VkSubmitInfo submit_info = {};
+	submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
+	submit_info.commandBufferCount = 1;
+	submit_info.pCommandBuffers = &m_command_buffers[index];
+
+	vkQueueSubmit(queue, 1, &submit_info, VK_NULL_HANDLE);
 }

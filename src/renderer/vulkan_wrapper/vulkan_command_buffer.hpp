@@ -62,6 +62,15 @@ namespace vkc::vk_wrapper
 		 */
 		void StopRecording(std::uint32_t index) const noexcept(false);
 
+		/** Submit the first command buffer in the vector on the specified queue */
+		void Submit(const VkQueue& queue) const noexcept(true);
+
+		/** Submit the command buffer at the index in the vector on the specified queue */
+		/**
+		 * Be careful, no bounds-check is performed when passing an index, this can trigger an out of range exception!
+		 */
+		void Submit(std::uint32_t index, const VkQueue& queue);
+
 	private:
 		std::vector<VkCommandBuffer> m_command_buffers;
 	};
