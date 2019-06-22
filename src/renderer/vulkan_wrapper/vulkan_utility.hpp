@@ -1,6 +1,13 @@
 #ifndef VK_UTILITY_HPP
 #define VK_UTILITY_HPP
 
+// Application
+#include "miscellaneous/exceptions.hpp"
+#include "vulkan_command_buffer.hpp"
+#include "vulkan_command_pool.hpp"
+#include "vulkan_device.hpp"
+#include "vulkan_enums.hpp"
+
 // C++ standard
 #include <string>
 #include <vector>
@@ -64,8 +71,80 @@ namespace vkc::vk_wrapper::utility
 		return true;
 	}
 
+	/** Transition an image layout from the current layout to a new layout */
+	inline void TransitionImageLayout(
+		const VulkanDevice& device,
+		const VulkanCommandPool& command_pool,
+		const VkImage& image,
+		VkImageLayout current_layout,
+		VkImageLayout new_layout) noexcept(false)
+	{
+		VulkanCommandBuffer cmd_buffer = {};
+		cmd_buffer.Create(device, command_pool, 1);
+		cmd_buffer.BeginRecording(CommandBufferUsage::OneTimeSubmit);
+
+		VkPipelineStageFlags source_stage = {}, destination_stage = {};
+
+		VkImageMemoryBarrier barrier = {};
+		barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+		barrier.oldLayout = current_layout;
+		barrier.newLayout = new_layout;
+		barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+		barrier.image = image;
+		barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+		barrier.subresourceRange.layerCount = 1;
+		barrier.subresourceRange.levelCount = 1;
+		barrier.subresourceRange.baseArrayLayer = 0;
+		barrier.subresourceRange.baseMipLevel = 0;
+
+		if (current_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
+		{
+			barrier.srcAccessMask = 0;
+			barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+
+			source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+			destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+		}
+		else if (current_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
+		{
+			barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+			barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+
+			source_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+			destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
+		}
+		else
+		{
+			throw exception::CriticalVulkanError("Unsupported image layout transition.");
+		}
+
+		// Record the transition commands
+		vkCmdPipelineBarrier(
+			cmd_buffer.GetNative(),
+			source_stage,
+			destination_stage,
+			0,	// Flags
+			0,	// No memory barriers
+			nullptr,
+			0,	// No buffer memory barriers
+			nullptr,
+			1,	// One image barrier
+			&barrier);
+
+		auto graphics_queue = device.GetQueueNativeOfType(enums::VulkanQueueType::Graphics);
+		
+		// Execute the commands on the graphics queue
+		cmd_buffer.StopRecording();
+		cmd_buffer.Submit(graphics_queue);
+		vkQueueWaitIdle(graphics_queue);
+
+		// Command buffer is no longer needed
+		cmd_buffer.Destroy(device, command_pool);
+	}
+
 	/** Get the number of bits per channel from a VkFormat (some uncommon formats have been excluded, invalid format == 0) */
-	std::uint32_t VulkanFormatToBitsPerChannel(VkFormat format) noexcept(true)
+	inline std::uint32_t VulkanFormatToBitsPerChannel(VkFormat format) noexcept(true)
 	{
 		switch (format)
 		{
@@ -202,7 +281,7 @@ namespace vkc::vk_wrapper::utility
 	}
 
 	/** Get the number of bytes per channel from a VkFormat (some uncommon formats have been excluded, invalid format == 0) */
-	std::uint32_t VulkanFormatToBytesPerChannel(VkFormat format) noexcept(true)
+	inline std::uint32_t VulkanFormatToBytesPerChannel(VkFormat format) noexcept(true)
 	{
 		std::uint32_t bits_per_channel = VulkanFormatToBitsPerChannel(format);
 
