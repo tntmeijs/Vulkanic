@@ -40,6 +40,9 @@ target_include_directories(${PROJECT_NAME} PRIVATE stduuid/include)
 # STB - header only
 target_include_directories(${PROJECT_NAME} PRIVATE stb)
 
+# VulkanMemoryAllocator - header only
+target_include_directories(${PROJECT_NAME} PRIVATE SYSTEM VulkanMemoryAllocator/src)
+
 # Group the generated third-party projects
 if(MSVC)
     set_target_properties(glfw PROPERTIES FOLDER Dependencies)

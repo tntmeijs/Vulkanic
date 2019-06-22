@@ -16,8 +16,27 @@
 #include <glm/vec3.hpp>
 
 // STB
-#include <miscellaneous/stb_defines.hpp>
+#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
+
+// VulkanMemoryManager
+#define VMA_IMPLEMENTATION
+
+#ifdef WIN32
+#pragma warning(push, 4)
+#pragma warning(disable: 4127) // conditional expression is constant
+#pragma warning(disable: 4100) // unreferenced formal parameter
+#pragma warning(disable: 4189) // local variable is initialized but not referenced
+#include <vk_mem_alloc.h>
+#pragma warning(pop)
+#endif // WIN32
+
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wtautological-compare" // comparison of unsigned expression < 0 is always false
+#include <vk_mem_alloc.h>
+#pragma clang diagnostic pop
+#endif // __clang__
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -97,7 +116,6 @@ Renderer::Renderer()
 	: m_frame_index(0)
 	, m_current_swapchain_image_index(0)
 	, m_framebuffer_resized(false)
-	, m_memory_manager(static_cast<std::uint32_t>(64_MB))
 {}
 
 Renderer::~Renderer()
@@ -114,7 +132,8 @@ Renderer::~Renderer()
 
 	vkDestroyDescriptorSetLayout(m_device.GetLogicalDeviceNative(), m_camera_data_descriptor_set_layout, nullptr);
 
-	m_vertex_buffer->Deallocate();
+	// This will automatically clean up any allocated buffers and images
+	memory::MemoryManager::GetInstance().Destroy();
 
 	for (auto index = 0; index < global_settings::maximum_in_flight_frame_count; ++index)
 	{
@@ -128,9 +147,6 @@ Renderer::~Renderer()
 	}
 	
 	m_graphics_command_pool.Destroy(m_device);
-
-	// Clean-up all memory chunks
-	m_memory_manager.Destroy();
 
 	m_device.Destroy();
 
@@ -181,6 +197,9 @@ void Renderer::Initialize(const Window& window)
 
 	// Create the logical device (physical device is created as well internally)
 	m_device.Create(m_instance, m_swapchain, global_settings::device_extension_names);
+
+	// Initialize the memory manager
+	memory::MemoryManager::GetInstance().Initialize(m_device);
 
 	// Create the swapchain (also creates all related objects such as image views)
 	m_swapchain.Create(m_device, window);
@@ -333,9 +352,9 @@ void Renderer::Update()
 		0.1f,
 		1000.0f);
 
-	m_camera_ubos[m_current_swapchain_image_index].Map(m_device.GetLogicalDeviceNative());
-	memcpy(m_camera_ubos[m_current_swapchain_image_index].Data(), &cam_data, sizeof(cam_data));
-	m_camera_ubos[m_current_swapchain_image_index].UnMap(m_device.GetLogicalDeviceNative());
+	auto data = memory::MemoryManager::GetInstance().MapBuffer(m_camera_ubos[m_current_swapchain_image_index]);
+	memcpy(data, &cam_data, sizeof(cam_data));
+	memory::MemoryManager::GetInstance().UnMapBuffer(m_camera_ubos[m_current_swapchain_image_index]);
 }
 
 void Renderer::TriggerFramebufferResized()
@@ -449,13 +468,21 @@ void Renderer::CreateTextureImage()
 		return;
 	}
 
-	auto staging_buffer = m_memory_manager.AllocateBuffer(m_device.GetLogicalDeviceNative(), m_device.GetPhysicalDeviceNative(), image_size, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+	// Create a staging buffer
+	memory::BufferAllocationInfo staging_buffer_alloc_info = {};
+	staging_buffer_alloc_info.buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	staging_buffer_alloc_info.buffer_create_info.size = image_size;
+	staging_buffer_alloc_info.buffer_create_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	staging_buffer_alloc_info.buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	staging_buffer_alloc_info.allocation_info.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+	auto staging_buffer = memory::MemoryManager::GetInstance().Allocate(staging_buffer_alloc_info);
 
 	// Copy image data to the staging buffer
-	staging_buffer.Map(m_device.GetLogicalDeviceNative());
-	auto buffer_data_ptr = staging_buffer.Data();
-	memcpy(buffer_data_ptr, pixel_data, static_cast<size_t>(image_size));
-	staging_buffer.UnMap(m_device.GetLogicalDeviceNative());
+	auto data = memory::MemoryManager::GetInstance().MapBuffer(staging_buffer);
+	memcpy(data, pixel_data, static_cast<size_t>(image_size));
+	memory::MemoryManager::GetInstance().UnMapBuffer(staging_buffer);
 
 	// Image data has been saved, no need to keep it around anymore
 	stbi_image_free(pixel_data);
@@ -515,7 +542,7 @@ void Renderer::CreateTextureImage()
 		m_device,
 		m_graphics_command_pool,
 		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
-		staging_buffer.Buffer(),
+		staging_buffer.buffer,
 		m_texture_image,
 		static_cast<std::uint32_t>(width),
 		static_cast<std::uint32_t>(height));
@@ -530,7 +557,7 @@ void Renderer::CreateTextureImage()
 		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
 	// Delete the staging buffer
-	staging_buffer.Deallocate();
+	memory::MemoryManager::GetInstance().Free(staging_buffer);
 }
 
 void Renderer::CreateTextureImageView()
@@ -619,7 +646,7 @@ void Renderer::RecordFrameCommands()
 		vkCmdBindPipeline(m_graphics_command_buffers.GetNative(i), VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics_pipeline.GetNative());
 
 		// Bind the triangle vertex buffer
-		VkBuffer vertex_buffers[] = { m_vertex_buffer->Buffer() };
+		VkBuffer vertex_buffers[] = { m_vertex_buffer.buffer };
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(m_graphics_command_buffers.GetNative(i), 0, 1, vertex_buffers, offsets);
 
@@ -748,7 +775,7 @@ void Renderer::CleanUpSwapchain()
 	for (auto index = 0; index < m_swapchain.GetImages().size(); ++index)
 	{
 		vkDestroyFramebuffer(m_device.GetLogicalDeviceNative(), m_swapchain_framebuffers[index], nullptr);
-		m_camera_ubos[index].Deallocate();
+		memory::MemoryManager::GetInstance().Free(m_camera_ubos[index]);
 	}
 
 	vkDestroyDescriptorPool(m_device.GetLogicalDeviceNative(), m_descriptor_pool, nullptr);
@@ -767,54 +794,61 @@ void Renderer::CreateVertexBuffer()
 {
 	VkDeviceSize buffer_size = sizeof(Vertex) * vertices.size();
 
-	// Create a staging buffer (CPU-visible)
-	auto staging_buffer = m_memory_manager.AllocateBuffer(
-		m_device.GetLogicalDeviceNative(),
-		m_device.GetPhysicalDeviceNative(),
-		buffer_size,
-		VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-		VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-	
-	// Copy the data to a staging buffer
-	staging_buffer.Map(m_device.GetLogicalDeviceNative());
-	memcpy(staging_buffer.Data(), vertices.data(), static_cast<size_t>(buffer_size));
-	staging_buffer.UnMap(m_device.GetLogicalDeviceNative());
+	// Create a CPU-visible staging buffer
+	memory::BufferAllocationInfo staging_buffer_alloc_info = {};
+	staging_buffer_alloc_info.buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	staging_buffer_alloc_info.buffer_create_info.size = sizeof(CameraData);
+	staging_buffer_alloc_info.buffer_create_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
+	staging_buffer_alloc_info.buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
-	// Create the GPU-visible vertex buffer
-	m_vertex_buffer = std::make_unique<memory::VirtualBuffer>(m_memory_manager.AllocateBuffer(
-		m_device.GetLogicalDeviceNative(),
-		m_device.GetPhysicalDeviceNative(),
-		buffer_size,
-		VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT));
+	staging_buffer_alloc_info.allocation_info.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+
+	auto staging_buffer = memory::MemoryManager::GetInstance().Allocate(staging_buffer_alloc_info);
+
+	// Copy the data to a staging buffer
+	auto data = memory::MemoryManager::GetInstance().MapBuffer(staging_buffer);
+	memcpy(data, vertices.data(), static_cast<size_t>(buffer_size));
+	memory::MemoryManager::GetInstance().UnMapBuffer(staging_buffer);
+
+	// Create a GPU-visible vertex buffer
+	memory::BufferAllocationInfo vertex_buffer_alloc_info = {};
+	vertex_buffer_alloc_info.buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+	vertex_buffer_alloc_info.buffer_create_info.size = sizeof(CameraData);
+	vertex_buffer_alloc_info.buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
+	vertex_buffer_alloc_info.buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+	vertex_buffer_alloc_info.allocation_info.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+	m_vertex_buffer = memory::MemoryManager::GetInstance().Allocate(vertex_buffer_alloc_info);
 
 	// Copy the staging buffer to the GPU visible buffer
 	CopyStagingBufferToDeviceLocalBuffer(
 		m_device,
-		&staging_buffer,
-		m_vertex_buffer.get(),
+		staging_buffer,
+		m_vertex_buffer,
 		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
 		m_graphics_command_pool);
 
 	// Clean up the staging buffer since it is no longer needed
-	staging_buffer.Deallocate();
+	memory::MemoryManager::GetInstance().Free(staging_buffer);
 }
 
 void Renderer::CreateUniformBuffers()
 {
-	VkDeviceSize ubo_size = sizeof(CameraData);
-
 	m_camera_ubos.reserve(m_swapchain.GetImages().size());
 
 	// Create a camera data UBO for each image in the swapchain
 	for (auto index = 0; index < m_swapchain.GetImages().size(); ++index)
 	{
-		m_camera_ubos.push_back(m_memory_manager.AllocateBuffer(
-			m_device.GetLogicalDeviceNative(),
-			m_device.GetPhysicalDeviceNative(),
-			ubo_size,
-			VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-			VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT));
+		memory::BufferAllocationInfo buffer_alloc_info = {};
+		buffer_alloc_info.buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+		buffer_alloc_info.buffer_create_info.size = sizeof(CameraData);
+		buffer_alloc_info.buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+		buffer_alloc_info.buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+
+		buffer_alloc_info.allocation_info.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
+
+		m_camera_ubos.push_back(memory::MemoryManager::GetInstance().Allocate(buffer_alloc_info));
 	}
 }
 
@@ -891,7 +925,7 @@ void Renderer::CreateDescriptorSets()
 	for (auto index = 0; index < m_swapchain.GetImages().size(); ++index)
 	{
 		VkDescriptorBufferInfo buffer_info = {};
-		buffer_info.buffer = m_camera_ubos[index].Buffer();
+		buffer_info.buffer = m_camera_ubos[index].buffer;
 		buffer_info.offset = 0;
 		buffer_info.range = sizeof(CameraData);
 
@@ -929,8 +963,8 @@ void Renderer::CreateDescriptorSets()
 
 void Renderer::CopyStagingBufferToDeviceLocalBuffer(
 	const vk_wrapper::VulkanDevice& device,
-	const memory::VirtualBuffer* const  source,
-	const memory::VirtualBuffer* const destination,
+	const memory::VulkanBuffer& source,
+	const memory::VulkanBuffer& destination,
 	const VkQueue& queue,
 	const vk_wrapper::VulkanCommandPool& pool)
 {
@@ -939,12 +973,12 @@ void Renderer::CopyStagingBufferToDeviceLocalBuffer(
 	cmd_buffer.BeginRecording(vk_wrapper::CommandBufferUsage::OneTimeSubmit);
 
 	VkBufferCopy copy_region = {};
-	copy_region.srcOffset = source->Offset();
-	copy_region.size = source->Size();
-	copy_region.dstOffset = destination->Offset();
+	copy_region.srcOffset = source.allocation->GetOffset();
+	copy_region.size = source.allocation->GetSize();
+	copy_region.dstOffset = destination.allocation->GetOffset();
 
 	// Issue a command that copies the staging buffer to the destination buffer
-	vkCmdCopyBuffer(cmd_buffer.GetNative(), source->Buffer(), destination->Buffer(), 1, &copy_region);
+	vkCmdCopyBuffer(cmd_buffer.GetNative(), source.buffer, destination.buffer, 1, &copy_region);
 	
 	// Execute the commands
 	cmd_buffer.StopRecording();

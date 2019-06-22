@@ -1,7 +1,6 @@
 set(MISCELLANEOUS_FILES
     miscellaneous/global_settings.hpp
     miscellaneous/exceptions.hpp
-    miscellaneous/stb_defines.hpp
     miscellaneous/vulkanic_literals.hpp)
 
 set(CORE_FILES
@@ -15,12 +14,6 @@ set(RENDERER_FILES
     renderer/renderer.hpp)
 
 set(MEMORY_MANAGER_FILES
-    renderer/memory_manager/virtual_buffer.cpp
-    renderer/memory_manager/virtual_buffer.hpp
-    renderer/memory_manager/memory_chunk.cpp
-    renderer/memory_manager/memory_chunk.hpp
-    renderer/memory_manager/memory_block.cpp
-    renderer/memory_manager/memory_block.hpp
     renderer/memory_manager/memory_manager.cpp
     renderer/memory_manager/memory_manager.hpp)
 
