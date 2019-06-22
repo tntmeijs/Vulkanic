@@ -19,3 +19,6 @@
 [submodule "third_party/stduuid"]
 	path = third_party/stduuid
 	url = https://github.com/mariusbancila/stduuid
+[submodule "third_party/VulkanMemoryAllocator"]
+	path = third_party/VulkanMemoryAllocator
+	url = https://github.com/GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator

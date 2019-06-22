@@ -8,9 +8,9 @@
 #include "vulkan_wrapper/vulkan_pipeline.hpp"
 #include "vulkan_wrapper/vulkan_render_pass.hpp"
 #include "vulkan_wrapper/vulkan_swapchain.hpp"
-#include "memory_manager/virtual_buffer.hpp"
 #include "vulkan_wrapper/vulkan_command_buffer.hpp"
 #include "vulkan_wrapper/vulkan_command_pool.hpp"
+#include "memory_manager/memory_manager.hpp"
 
 // Application core
 #include "core/window.hpp"
@@ -31,8 +31,6 @@
 
 namespace vkc
 {
-	class memory::VirtualBuffer;
-
 	class Renderer
 	{
 	public:
@@ -62,8 +60,8 @@ namespace vkc
 		
 		static void CopyStagingBufferToDeviceLocalBuffer(
 			const vk_wrapper::VulkanDevice& device,
-			const memory::VirtualBuffer* const  source,
-			const memory::VirtualBuffer* const destination,
+			const memory::VulkanBuffer&  source,
+			const memory::VulkanBuffer& destination,
 			const VkQueue& queue,
 			const vk_wrapper::VulkanCommandPool& pool);
 
@@ -99,8 +97,8 @@ namespace vkc
 		VkImageView m_texture_image_view;
 		VkSampler m_texture_sampler;
 
-		std::unique_ptr<memory::VirtualBuffer> m_vertex_buffer;
-		std::vector<memory::VirtualBuffer> m_camera_ubos;
+		memory::VulkanBuffer m_vertex_buffer;
+		std::vector<memory::VulkanBuffer> m_camera_ubos;
 
 		std::vector<VkFramebuffer> m_swapchain_framebuffers;
 		std::vector<VkSemaphore> m_in_flight_frame_image_available_semaphores;
@@ -116,7 +114,5 @@ namespace vkc
 		vk_wrapper::VulkanRenderPass m_render_pass;
 		vk_wrapper::VulkanCommandPool m_graphics_command_pool;
 		vk_wrapper::VulkanCommandBuffer m_graphics_command_buffers;
-
-		memory::MemoryManager m_memory_manager;
 	};
 }
