@@ -132,6 +132,14 @@ const VulkanBuffer& MemoryManager::Allocate(const BufferAllocationInfo& buffer_i
 		throw CriticalVulkanError("Could not create a buffer.");
 	}
 
+	// Get the allocation information
+	VmaAllocationInfo alloc_info = {};
+	vmaGetAllocationInfo(m_allocator, buffer.allocation, &alloc_info);
+
+	// Save the size and offset for easy access in the future
+	buffer.offset = alloc_info.offset;
+	buffer.size = alloc_info.size;
+
 	// Save the buffer
 	m_buffers.push_back(buffer);
 	return m_buffers[m_buffers.size() - 1];
@@ -159,6 +167,11 @@ const VulkanImage& MemoryManager::Allocate(const ImageAllocationInfo& image_info
 	// Save the image
 	m_images.push_back(image);
 	return m_images[m_images.size() - 1];
+}
+
+const VmaAllocator& MemoryManager::GetVMAAllocation() const noexcept(true)
+{
+	return m_allocator;
 }
 
 MemoryManager::MemoryManager()

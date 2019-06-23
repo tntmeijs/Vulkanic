@@ -16,27 +16,10 @@
 #include <glm/vec3.hpp>
 
 // STB
-#define STB_IMAGE_IMPLEMENTATION
 #include <stb_image.h>
 
 // VulkanMemoryManager
-#define VMA_IMPLEMENTATION
-
-#ifdef WIN32
-#pragma warning(push, 4)
-#pragma warning(disable: 4127) // conditional expression is constant
-#pragma warning(disable: 4100) // unreferenced formal parameter
-#pragma warning(disable: 4189) // local variable is initialized but not referenced
 #include <vk_mem_alloc.h>
-#pragma warning(pop)
-#endif // WIN32
-
-#ifdef __clang__
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wtautological-compare" // comparison of unsigned expression < 0 is always false
-#include <vk_mem_alloc.h>
-#pragma clang diagnostic pop
-#endif // __clang__
 
 //////////////////////////////////////////////////////////////////////////
 
@@ -973,9 +956,9 @@ void Renderer::CopyStagingBufferToDeviceLocalBuffer(
 	cmd_buffer.BeginRecording(vk_wrapper::CommandBufferUsage::OneTimeSubmit);
 
 	VkBufferCopy copy_region = {};
-	copy_region.srcOffset = source.allocation->GetOffset();
-	copy_region.size = source.allocation->GetSize();
-	copy_region.dstOffset = destination.allocation->GetOffset();
+	copy_region.srcOffset = source.offset;
+	copy_region.size = source.size;
+	copy_region.dstOffset = destination.offset;
 
 	// Issue a command that copies the staging buffer to the destination buffer
 	vkCmdCopyBuffer(cmd_buffer.GetNative(), source.buffer, destination.buffer, 1, &copy_region);
