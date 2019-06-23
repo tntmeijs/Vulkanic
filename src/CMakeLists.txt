@@ -1,7 +1,9 @@
 set(MISCELLANEOUS_FILES
     miscellaneous/global_settings.hpp
     miscellaneous/exceptions.hpp
-    miscellaneous/vulkanic_literals.hpp)
+    miscellaneous/vulkanic_literals.hpp
+    miscellaneous/vma_impl.cpp
+    miscellaneous/stb_impl.cpp)
 
 set(CORE_FILES
     core/window.cpp
@@ -39,7 +41,9 @@ set(VULKAN_WRAPPER_FILES
     renderer/vulkan_wrapper/vulkan_command_buffer.cpp
     renderer/vulkan_wrapper/vulkan_command_buffer.hpp
     renderer/vulkan_wrapper/vulkan_command_pool.cpp
-    renderer/vulkan_wrapper/vulkan_command_pool.hpp)
+    renderer/vulkan_wrapper/vulkan_command_pool.hpp
+    renderer/vulkan_wrapper/vulkan_texture.cpp
+    renderer/vulkan_wrapper/vulkan_texture.hpp)
 
 # Find Vulkan on the system
 find_package(Vulkan REQUIRED)
