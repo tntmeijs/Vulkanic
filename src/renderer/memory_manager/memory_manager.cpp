@@ -3,9 +3,6 @@
 #include "miscellaneous/exceptions.hpp"
 #include "renderer/vulkan_wrapper/vulkan_device.hpp"
 
-// VulkanMemoryAllocator
-#include <vk_mem_alloc.h>
-
 // C++ standard
 #include <algorithm>
 
