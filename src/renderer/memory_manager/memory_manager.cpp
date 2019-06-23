@@ -164,6 +164,14 @@ const VulkanImage& MemoryManager::Allocate(const ImageAllocationInfo& image_info
 		throw CriticalVulkanError("Could not create an image.");
 	}
 
+	// Get the allocation information
+	VmaAllocationInfo alloc_info = {};
+	vmaGetAllocationInfo(m_allocator, image.allocation, &alloc_info);
+
+	// Save the size and offset for easy access in the future
+	image.offset = alloc_info.offset;
+	image.size = alloc_info.size;
+
 	// Save the image
 	m_images.push_back(image);
 	return m_images[m_images.size() - 1];
