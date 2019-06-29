@@ -956,9 +956,9 @@ void Renderer::CopyStagingBufferToDeviceLocalBuffer(
 	cmd_buffer.BeginRecording(vk_wrapper::CommandBufferUsage::OneTimeSubmit);
 
 	VkBufferCopy copy_region = {};
-	copy_region.srcOffset = source.offset;
-	copy_region.size = source.size;
-	copy_region.dstOffset = destination.offset;
+	copy_region.srcOffset = source.info.offset;
+	copy_region.size = source.info.size;
+	copy_region.dstOffset = destination.info.offset;
 
 	// Issue a command that copies the staging buffer to the destination buffer
 	vkCmdCopyBuffer(cmd_buffer.GetNative(), source.buffer, destination.buffer, 1, &copy_region);

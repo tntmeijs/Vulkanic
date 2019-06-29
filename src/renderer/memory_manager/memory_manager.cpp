@@ -123,7 +123,7 @@ const VulkanBuffer& MemoryManager::Allocate(const BufferAllocationInfo& buffer_i
 		&buffer_info.allocation_info,
 		&buffer.buffer,
 		&buffer.allocation,
-		nullptr);
+		&buffer.info);
 
 	buffer.id = CreateNewID();
 
@@ -135,10 +135,6 @@ const VulkanBuffer& MemoryManager::Allocate(const BufferAllocationInfo& buffer_i
 	// Get the allocation information
 	VmaAllocationInfo alloc_info = {};
 	vmaGetAllocationInfo(m_allocator, buffer.allocation, &alloc_info);
-
-	// Save the size and offset for easy access in the future
-	buffer.offset = alloc_info.offset;
-	buffer.size = alloc_info.size;
 
 	// Save the buffer
 	m_buffers.push_back(buffer);
@@ -155,7 +151,7 @@ const VulkanImage& MemoryManager::Allocate(const ImageAllocationInfo& image_info
 		&image_info.allocation_info,
 		&image.image,
 		&image.allocation,
-		nullptr);
+		&image.info);
 
 	image.id = CreateNewID();
 
@@ -163,14 +159,6 @@ const VulkanImage& MemoryManager::Allocate(const ImageAllocationInfo& image_info
 	{
 		throw CriticalVulkanError("Could not create an image.");
 	}
-
-	// Get the allocation information
-	VmaAllocationInfo alloc_info = {};
-	vmaGetAllocationInfo(m_allocator, image.allocation, &alloc_info);
-
-	// Save the size and offset for easy access in the future
-	image.offset = alloc_info.offset;
-	image.size = alloc_info.size;
 
 	// Save the image
 	m_images.push_back(image);

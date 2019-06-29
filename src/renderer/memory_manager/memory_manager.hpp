@@ -36,10 +36,8 @@ namespace vkc
 		/** Keeps the buffer object and its ID together */
 		struct VulkanBuffer
 		{
-			std::uint64_t offset;
-			std::uint64_t size;
-
 			VkBuffer buffer;
+			VmaAllocationInfo info;
 			VmaAllocation allocation;
 			std::uint64_t id;
 		};
@@ -47,10 +45,8 @@ namespace vkc
 		/** Keeps the image object and its ID together */
 		struct VulkanImage
 		{
-			std::uint64_t offset;
-			std::uint64_t size;
-
 			VkImage image;
+			VmaAllocationInfo info;
 			VmaAllocation allocation;
 			std::uint64_t id;
 		};
