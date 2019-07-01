@@ -10,7 +10,6 @@
 #include "vulkan_wrapper/vulkan_swapchain.hpp"
 #include "vulkan_wrapper/vulkan_command_buffer.hpp"
 #include "vulkan_wrapper/vulkan_command_pool.hpp"
-#include "vulkan_wrapper/vulkan_texture.hpp"
 #include "memory_manager/memory_manager.hpp"
 
 // Application core
@@ -46,6 +45,8 @@ namespace vkc
 	private:
 		void CreateGraphicsPipeline();
 		void CreateFramebuffers();
+		void CreateTextureImage();
+		void CreateTextureImageView();
 		void CreateTextureSampler();
 		void RecordFrameCommands();
 		void CreateSynchronizationObjects();
@@ -64,6 +65,23 @@ namespace vkc
 			const VkQueue& queue,
 			const vk_wrapper::VulkanCommandPool& pool);
 
+		static void TransitionImageLayout(
+			const vk_wrapper::VulkanDevice& device,
+			const vk_wrapper::VulkanCommandPool& pool,
+			const VkQueue& queue,
+			const VkImage& image,
+			const VkImageLayout& current_layout,
+			const VkImageLayout& new_layout);
+
+		static void CopyBufferToImage(
+			const vk_wrapper::VulkanDevice& device,
+			const vk_wrapper::VulkanCommandPool& pool,
+			const VkQueue& queue,
+			const VkBuffer& buffer,
+			const VkImage& image,
+			std::uint32_t width,
+			std::uint32_t height);
+
 	private:
 		GLFWwindow* m_window;
 		uint64_t m_frame_index;
@@ -74,6 +92,9 @@ namespace vkc
 		VkDescriptorSetLayout m_camera_data_descriptor_set_layout;
 		VkPipelineLayout m_pipeline_layout;
 		VkDescriptorPool m_descriptor_pool;
+		VkImage m_texture_image;
+		VkDeviceMemory m_texture_image_memory;
+		VkImageView m_texture_image_view;
 		VkSampler m_texture_sampler;
 
 		memory::VulkanBuffer m_vertex_buffer;
@@ -93,6 +114,5 @@ namespace vkc
 		vk_wrapper::VulkanRenderPass m_render_pass;
 		vk_wrapper::VulkanCommandPool m_graphics_command_pool;
 		vk_wrapper::VulkanCommandBuffer m_graphics_command_buffers;
-		vk_wrapper::VulkanTexture m_texture;
 	};
 }
