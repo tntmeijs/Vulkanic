@@ -642,7 +642,7 @@ void Renderer::CreateVertexBuffer()
 	// Create a CPU-visible staging buffer
 	memory::BufferAllocationInfo staging_buffer_alloc_info = {};
 	staging_buffer_alloc_info.buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	staging_buffer_alloc_info.buffer_create_info.size = sizeof(CameraData);
+	staging_buffer_alloc_info.buffer_create_info.size = buffer_size;
 	staging_buffer_alloc_info.buffer_create_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 	staging_buffer_alloc_info.buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
@@ -658,7 +658,7 @@ void Renderer::CreateVertexBuffer()
 	// Create a GPU-visible vertex buffer
 	memory::BufferAllocationInfo vertex_buffer_alloc_info = {};
 	vertex_buffer_alloc_info.buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	vertex_buffer_alloc_info.buffer_create_info.size = sizeof(CameraData);
+	vertex_buffer_alloc_info.buffer_create_info.size = buffer_size;
 	vertex_buffer_alloc_info.buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
 	vertex_buffer_alloc_info.buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
