@@ -434,6 +434,8 @@ void Renderer::CreateFramebuffers()
 
 void Renderer::CreateTextureImage()
 {
+	m_test_texture.Create("./resources/textures/uv_checker_map.png", VK_FORMAT_R8G8B8A8_UNORM, m_device, m_graphics_command_pool);
+
 	const char* path = "./resources/textures/uv_checker_map.png";
 	int width, height, channel_count;
 	auto* const pixel_data = stbi_load(
@@ -801,6 +803,9 @@ void Renderer::CreateVertexBuffer()
 	vertex_buffer_alloc_info.buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 	vertex_buffer_alloc_info.allocation_info.usage = VMA_MEMORY_USAGE_GPU_ONLY;
+
+	// Not deleting the texture here causes the vertex memory to zero-out (right before vertex buffer memory allocation)
+	//m_test_texture.Destroy(m_device);
 
 	m_vertex_buffer = memory::MemoryManager::GetInstance().Allocate(vertex_buffer_alloc_info);
 

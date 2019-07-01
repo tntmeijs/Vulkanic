@@ -10,6 +10,7 @@
 #include "vulkan_wrapper/vulkan_swapchain.hpp"
 #include "vulkan_wrapper/vulkan_command_buffer.hpp"
 #include "vulkan_wrapper/vulkan_command_pool.hpp"
+#include "vulkan_wrapper/vulkan_texture.hpp"
 #include "memory_manager/memory_manager.hpp"
 
 // Application core
@@ -114,5 +115,6 @@ namespace vkc
 		vk_wrapper::VulkanRenderPass m_render_pass;
 		vk_wrapper::VulkanCommandPool m_graphics_command_pool;
 		vk_wrapper::VulkanCommandBuffer m_graphics_command_buffers;
+		vk_wrapper::VulkanTexture m_test_texture;
 	};
 }
