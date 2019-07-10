@@ -3,9 +3,6 @@
 #include "miscellaneous/exceptions.hpp"
 #include "renderer/vulkan_wrapper/vulkan_device.hpp"
 
-// VulkanMemoryAllocator
-#include <vk_mem_alloc.h>
-
 // C++ standard
 #include <algorithm>
 
@@ -126,7 +123,7 @@ const VulkanBuffer& MemoryManager::Allocate(const BufferAllocationInfo& buffer_i
 		&buffer_info.allocation_info,
 		&buffer.buffer,
 		&buffer.allocation,
-		nullptr);
+		&buffer.info);
 
 	buffer.id = CreateNewID();
 
@@ -134,6 +131,10 @@ const VulkanBuffer& MemoryManager::Allocate(const BufferAllocationInfo& buffer_i
 	{
 		throw CriticalVulkanError("Could not create a buffer.");
 	}
+
+	// Get the allocation information
+	VmaAllocationInfo alloc_info = {};
+	vmaGetAllocationInfo(m_allocator, buffer.allocation, &alloc_info);
 
 	// Save the buffer
 	m_buffers.push_back(buffer);
@@ -150,7 +151,7 @@ const VulkanImage& MemoryManager::Allocate(const ImageAllocationInfo& image_info
 		&image_info.allocation_info,
 		&image.image,
 		&image.allocation,
-		nullptr);
+		&image.info);
 
 	image.id = CreateNewID();
 
@@ -162,6 +163,11 @@ const VulkanImage& MemoryManager::Allocate(const ImageAllocationInfo& image_info
 	// Save the image
 	m_images.push_back(image);
 	return m_images[m_images.size() - 1];
+}
+
+const VmaAllocator& MemoryManager::GetVMAAllocation() const noexcept(true)
+{
+	return m_allocator;
 }
 
 MemoryManager::MemoryManager()

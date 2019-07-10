@@ -37,6 +37,7 @@ namespace vkc
 		struct VulkanBuffer
 		{
 			VkBuffer buffer;
+			VmaAllocationInfo info;
 			VmaAllocation allocation;
 			std::uint64_t id;
 		};
@@ -45,6 +46,7 @@ namespace vkc
 		struct VulkanImage
 		{
 			VkImage image;
+			VmaAllocationInfo info;
 			VmaAllocation allocation;
 			std::uint64_t id;
 		};
@@ -88,6 +90,9 @@ namespace vkc
 
 			/** Allocate a new image */
 			const VulkanImage& Allocate(const ImageAllocationInfo& image_info) noexcept(false);
+
+			/** Get a reference to the VulkanMemoryAllocator allocator object */
+			const VmaAllocator& GetVMAAllocation() const noexcept(true);
 
 		private:
 			/** Is not needed for a Singleton */
