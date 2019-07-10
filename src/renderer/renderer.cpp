@@ -109,9 +109,7 @@ Renderer::~Renderer()
 	CleanUpSwapchain();
 
 	vkDestroySampler(m_device.GetLogicalDeviceNative(), m_texture_sampler, nullptr);
-	vkDestroyImageView(m_device.GetLogicalDeviceNative(), m_texture_image_view, nullptr);
-	vkDestroyImage(m_device.GetLogicalDeviceNative(), m_texture_image, nullptr);
-	vkFreeMemory(m_device.GetLogicalDeviceNative(), m_texture_image_memory, nullptr);
+	m_uv_map_checker_texture.Destroy(m_device);
 
 	vkDestroyDescriptorSetLayout(m_device.GetLogicalDeviceNative(), m_camera_data_descriptor_set_layout, nullptr);
 
@@ -228,11 +226,12 @@ void Renderer::Initialize(const Window& window)
 
 	m_graphics_command_pool.Create(m_device, vk_wrapper::CommandPoolType::Graphics);
 
-	CreateTextureImage();
-	CreateTextureImageView();
-	CreateTextureSampler();
 	CreateVertexBuffer();
 	CreateUniformBuffers();
+
+	m_uv_map_checker_texture.Create("./resources/textures/uv_checker_map.png", VK_FORMAT_R8G8B8A8_UNORM, m_device, m_graphics_command_pool);
+
+	CreateTextureSampler();
 	CreateDescriptorPool();
 	CreateDescriptorSets();
 	RecordFrameCommands();
@@ -430,145 +429,6 @@ void Renderer::CreateFramebuffers()
 	}
 
 	spdlog::info("Successfully created a framebuffer for each swapchain image view.");
-}
-
-void Renderer::CreateTextureImage()
-{
-	m_test_texture.Create("./resources/textures/uv_checker_map.png", VK_FORMAT_R8G8B8A8_UNORM, m_device, m_graphics_command_pool);
-
-	const char* path = "./resources/textures/uv_checker_map.png";
-	int width, height, channel_count;
-	auto* const pixel_data = stbi_load(
-		path,
-		&width,
-		&height,
-		&channel_count,
-		STBI_rgb_alpha);
-
-	VkDeviceSize image_size = width * height * STBI_rgb_alpha;
-
-	if (!pixel_data)
-	{
-		spdlog::error("{} could not be loaded.", path);
-		return;
-	}
-
-	// Create a staging buffer
-	memory::BufferAllocationInfo staging_buffer_alloc_info = {};
-	staging_buffer_alloc_info.buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	staging_buffer_alloc_info.buffer_create_info.size = image_size;
-	staging_buffer_alloc_info.buffer_create_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-	staging_buffer_alloc_info.buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	staging_buffer_alloc_info.allocation_info.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-	auto staging_buffer = memory::MemoryManager::GetInstance().Allocate(staging_buffer_alloc_info);
-
-	// Copy image data to the staging buffer
-	auto data = memory::MemoryManager::GetInstance().MapBuffer(staging_buffer);
-	memcpy(data, pixel_data, static_cast<size_t>(image_size));
-	memory::MemoryManager::GetInstance().UnMapBuffer(staging_buffer);
-
-	// Image data has been saved, no need to keep it around anymore
-	stbi_image_free(pixel_data);
-
-	// Create a Vulkan image
-	vk_wrapper::func::CreateImage(
-		m_device.GetLogicalDeviceNative(),
-		width,
-		height,
-		VK_FORMAT_R8G8B8A8_UNORM,
-		VK_IMAGE_TILING_OPTIMAL,
-		VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-		m_texture_image);
-
-	// Allocate memory for the image
-	VkMemoryRequirements memory_requirements;
-	vkGetImageMemoryRequirements(
-		m_device.GetLogicalDeviceNative(),
-		m_texture_image,
-		&memory_requirements);
-
-	VkMemoryAllocateInfo alloc_info = {};
-	alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-	alloc_info.allocationSize = memory_requirements.size;
-	alloc_info.memoryTypeIndex = vk_wrapper::func::FindMemoryTypeIndex(
-		memory_requirements.memoryTypeBits,
-		VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-		m_device.GetPhysicalDeviceNative());
-
-	if (vkAllocateMemory(
-		m_device.GetLogicalDeviceNative(),
-		&alloc_info,
-		nullptr,
-		&m_texture_image_memory) != VK_SUCCESS)
-	{
-		spdlog::error("Could not allocate image memory.");
-		return;
-	}
-
-	vkBindImageMemory(
-		m_device.GetLogicalDeviceNative(),
-		m_texture_image,
-		m_texture_image_memory,
-		0);
-
-	// Transition the image so it can be used as a transfer destination
-	TransitionImageLayout(
-		m_device,
-		m_graphics_command_pool,
-		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
-		m_texture_image,
-		VK_IMAGE_LAYOUT_UNDEFINED,
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-	// Perform the buffer to image data transfer
-	CopyBufferToImage(
-		m_device,
-		m_graphics_command_pool,
-		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
-		staging_buffer.buffer,
-		m_texture_image,
-		static_cast<std::uint32_t>(width),
-		static_cast<std::uint32_t>(height));
-
-	// Transition the image so it can be used to read from in a shader
-	TransitionImageLayout(
-		m_device,
-		m_graphics_command_pool,
-		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
-		m_texture_image,
-		VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-		VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-	// Delete the staging buffer
-	memory::MemoryManager::GetInstance().Free(staging_buffer);
-}
-
-void Renderer::CreateTextureImageView()
-{
-	VkImageViewCreateInfo info = {};
-	info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-	info.image = m_texture_image;
-	info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-	info.format = VK_FORMAT_R8G8B8A8_UNORM;
-	info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	info.subresourceRange.layerCount = 1;
-	info.subresourceRange.levelCount = 1;
-	info.subresourceRange.baseArrayLayer = 0;
-	info.subresourceRange.baseMipLevel = 0;
-	info.components = {
-		VK_COMPONENT_SWIZZLE_IDENTITY,
-		VK_COMPONENT_SWIZZLE_IDENTITY,
-		VK_COMPONENT_SWIZZLE_IDENTITY,
-		VK_COMPONENT_SWIZZLE_IDENTITY
-	};
-
-	if (vkCreateImageView(m_device.GetLogicalDeviceNative(), &info, nullptr, &m_texture_image_view) != VK_SUCCESS)
-	{
-		spdlog::error("Could not create an image view.");
-		return;
-	}
 }
 
 void Renderer::CreateTextureSampler()
@@ -919,7 +779,7 @@ void Renderer::CreateDescriptorSets()
 
 		VkDescriptorImageInfo image_info = {};
 		image_info.sampler = m_texture_sampler;
-		image_info.imageView = m_texture_image_view;
+		image_info.imageView = m_uv_map_checker_texture.GetImageView();
 		image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
 		VkWriteDescriptorSet descriptor_writes[2] = {};
@@ -968,119 +828,6 @@ void Renderer::CopyStagingBufferToDeviceLocalBuffer(
 	// Issue a command that copies the staging buffer to the destination buffer
 	vkCmdCopyBuffer(cmd_buffer.GetNative(), source.buffer, destination.buffer, 1, &copy_region);
 	
-	// Execute the commands
-	cmd_buffer.StopRecording();
-	cmd_buffer.Submit(queue);
-	vkQueueWaitIdle(queue);
-
-	// No longer need the command buffer to stick around
-	cmd_buffer.Destroy(device, pool);
-}
-
-void Renderer::TransitionImageLayout(
-	const vk_wrapper::VulkanDevice& device,
-	const vk_wrapper::VulkanCommandPool& pool,
-	const VkQueue& queue,
-	const VkImage& image,
-	const VkImageLayout& current_layout,
-	const VkImageLayout& new_layout)
-{
-	vk_wrapper::VulkanCommandBuffer cmd_buffer;
-	cmd_buffer.Create(device, pool, 1);
-	cmd_buffer.BeginRecording(vk_wrapper::CommandBufferUsage::OneTimeSubmit);
-
-	VkPipelineStageFlags source_stage;
-	VkPipelineStageFlags destination_stage;
-
-	VkImageMemoryBarrier barrier = {};
-	barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-	barrier.oldLayout = current_layout;
-	barrier.newLayout = new_layout;
-	barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-	barrier.image = image;
-	barrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	barrier.subresourceRange.layerCount = 1;
-	barrier.subresourceRange.levelCount = 1;
-	barrier.subresourceRange.baseArrayLayer = 0;
-	barrier.subresourceRange.baseMipLevel = 0;
-
-	if (current_layout == VK_IMAGE_LAYOUT_UNDEFINED && new_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)
-	{
-		barrier.srcAccessMask = 0;
-		barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-
-		source_stage = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-		destination_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-	}
-	else if (current_layout == VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL && new_layout == VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)
-	{
-		barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-		barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-
-		source_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
-		destination_stage = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-	}
-	else
-	{
-		spdlog::error("Unsupported image layout transition.");
-		return;
-	}
-
-	vkCmdPipelineBarrier(
-		cmd_buffer.GetNative(),
-		source_stage,
-		destination_stage,
-		0,			// Flags
-		0,			// No memory barriers
-		nullptr,
-		0,			// No buffer memory barriers
-		nullptr,
-		1,			// One image memory barrier
-		&barrier);
-
-	// Execute the commands
-	cmd_buffer.StopRecording();
-	cmd_buffer.Submit(queue);
-	vkQueueWaitIdle(queue);
-
-	// No longer need the command buffer to stick around
-	cmd_buffer.Destroy(device, pool);
-}
-
-void Renderer::CopyBufferToImage(
-	const vk_wrapper::VulkanDevice& device,
-	const vk_wrapper::VulkanCommandPool& pool,
-	const VkQueue& queue,
-	const VkBuffer& buffer,
-	const VkImage& image,
-	std::uint32_t width,
-	std::uint32_t height)
-{
-	vk_wrapper::VulkanCommandBuffer cmd_buffer;
-	cmd_buffer.Create(device, pool, 1);
-	cmd_buffer.BeginRecording(vk_wrapper::CommandBufferUsage::OneTimeSubmit);
-
-	VkBufferImageCopy region = {};
-	
-	// No padding
-	region.bufferOffset = 0;
-	region.bufferRowLength = 0;
-	region.bufferImageHeight = 0;
-
-	// Use no mip / array levels
-	region.imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-	region.imageSubresource.baseArrayLayer = 0;
-	region.imageSubresource.mipLevel = 0;
-	region.imageSubresource.layerCount = 1;
-
-	// Copy the entire image
-	region.imageOffset = { 0, 0, 0 };
-	region.imageExtent = { width, height, 1 };
-
-	// Queue the copy operation
-	vkCmdCopyBufferToImage(cmd_buffer.GetNative(), buffer, image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &region);
-
 	// Execute the commands
 	cmd_buffer.StopRecording();
 	cmd_buffer.Submit(queue);
