@@ -41,24 +41,17 @@ set(IMGUI_FILES
     imgui/examples/imgui_impl_glfw.cpp
     imgui/examples/imgui_impl_glfw.h)
 add_library(imgui ${IMGUI_FILES})
-target_include_directories(imgui INTERFACE imgui)
+target_include_directories(imgui PRIVATE imgui)         # ImGui needs the ImGui root folder
+target_include_directories(imgui PRIVATE glfw/include)  # ImGui needs GLFW
+target_link_libraries(imgui Vulkan::Vulkan)             # ImGui needs Vulkan
 target_link_libraries(${PROJECT_NAME} imgui)
+target_include_directories(${PROJECT_NAME} PRIVATE imgui)
 
-# STB - header only
-set(STB_FILES
-    stb/stb_image.h
-    stb/stb_image_write.h)
-add_library(stb ${STB_FILES})
-set_target_properties(stb PROPERTIES LINKER_LANGUAGE CXX) # Necessary because only .h files will confuse CMAKE and make it fail when it tries to determine the linker language for the library
-target_include_directories(stb INTERFACE stb)
-target_link_libraries(${PROJECT_NAME} stb)
+# STB (header only)
+target_include_directories(${PROJECT_NAME} PRIVATE stb)
 
-# VulkanMemoryAllocator - header only
-set(VMA_FILES VulkanMemoryAllocator/src/vk_mem_alloc.h)
-add_library(vma ${VMA_FILES})
-set_target_properties(vma PROPERTIES LINKER_LANGUAGE CXX) # Necessary because only .h files will confuse CMAKE and make it fail when it tries to determine the linker language for the library
-target_include_directories(vma INTERFACE VulkanMemoryAllocator/src)
-target_link_libraries(${PROJECT_NAME} vma)
+# VulkanMemoryAllocator (header only)
+target_include_directories(${PROJECT_NAME} PRIVATE VulkanMemoryAllocator/src/)
 
 # Group the generated third-party projects
 if(MSVC)
@@ -68,14 +61,8 @@ if(MSVC)
     # Spdlog
     set_target_properties(spdlog_headers_for_ide PROPERTIES FOLDER Dependencies/spdlog)
 
-    # VMA
-    set_target_properties(vma PROPERTIES FOLDER Dependencies/vma)
-
     # Dear ImGui
     set_target_properties(imgui PROPERTIES FOLDER Dependencies/imgui)
-
-    # STB
-    set_target_properties(stb PROPERTIES FOLDER Dependencies/stb)
 
     # GLM
     set_target_properties(glm_static PROPERTIES FOLDER Dependencies/glm)

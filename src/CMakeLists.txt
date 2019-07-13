@@ -45,14 +45,6 @@ set(VULKAN_WRAPPER_FILES
     renderer/vulkan_wrapper/vulkan_texture.cpp
     renderer/vulkan_wrapper/vulkan_texture.hpp)
 
-# Find Vulkan on the system
-find_package(Vulkan REQUIRED)
-
-# Use the Vulkan Windows extension
-if(MSVC)
-	add_compile_definitions(VK_USE_PLATFORM_WIN32_KHR)
-endif(MSVC)
-
 add_executable(
     ${PROJECT_NAME}
     main.cpp
