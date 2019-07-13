@@ -4,6 +4,14 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 project(${PROJECT_NAME})
 
+# Find Vulkan on the system
+find_package(Vulkan REQUIRED)
+
+# Use the Vulkan Windows extension
+if(MSVC)
+	add_compile_definitions(VK_USE_PLATFORM_WIN32_KHR)
+endif(MSVC)
+
 # Vulkanic
 add_subdirectory(src)
 target_include_directories(${PROJECT_NAME} PRIVATE src)
