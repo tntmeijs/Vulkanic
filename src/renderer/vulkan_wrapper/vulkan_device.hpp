@@ -3,7 +3,6 @@
 
 // Application
 #include "vulkan_enums.hpp"
-#include "vulkan_structures.hpp"
 
 // Vulkan
 #include <vulkan/vulkan.h>

@@ -22,7 +22,6 @@ set(MEMORY_MANAGER_FILES
 set(VULKAN_WRAPPER_FILES
     renderer/vulkan_wrapper/vulkan_utility.hpp
     renderer/vulkan_wrapper/vulkan_enums.hpp
-    renderer/vulkan_wrapper/vulkan_structures.hpp
     renderer/vulkan_wrapper/vulkan_functions.hpp
     renderer/vulkan_wrapper/vulkan_pipeline_info.hpp
     renderer/vulkan_wrapper/vulkan_instance.cpp

@@ -2,7 +2,6 @@
 #include "miscellaneous/exceptions.hpp"
 #include "vulkan_device.hpp"
 #include "vulkan_instance.hpp"
-#include "vulkan_structures.hpp"
 #include "vulkan_swapchain.hpp"
 #include "vulkan_utility.hpp"
 

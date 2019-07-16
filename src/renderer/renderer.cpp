@@ -4,7 +4,6 @@
 #include "miscellaneous/global_settings.hpp"
 #include "renderer.hpp"
 #include "vulkan_wrapper/vulkan_enums.hpp"
-#include "vulkan_wrapper/vulkan_structures.hpp"
 #include "vulkan_wrapper/vulkan_functions.hpp"
 #include "miscellaneous/vulkanic_literals.hpp"
 
