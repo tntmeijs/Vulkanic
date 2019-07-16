@@ -13,26 +13,6 @@
 
 namespace vkc::vk_wrapper::structs
 {
-	/** Queue family indices information */
-	struct QueueFamilyIndices
-	{
-		// pair::first = index, pair::second = queue count
-		std::optional<std::pair<uint32_t, uint32_t>> graphics_family_index;
-		
-		// pair::first = index, pair::second = queue count
-		std::optional<std::pair<uint32_t, uint32_t>> present_family_index;
-		
-		// pair::first = index, pair::second = queue count
-		std::optional<std::pair<uint32_t, uint32_t>> compute_family_index;
-
-		bool IsComplete()
-		{
-			return (graphics_family_index.has_value()	&&
-					present_family_index.has_value()	&&
-					compute_family_index.has_value());
-		}
-	};
-
 	/** Base class for a Vulkan pipeline information structure */
 	struct VulkanPipelineInfo
 	{

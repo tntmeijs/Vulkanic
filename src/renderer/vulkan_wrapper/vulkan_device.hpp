@@ -17,11 +17,26 @@ namespace vkc::vk_wrapper
 {
 	class VulkanInstance;
 	class VulkanSwapchain;
-
-	namespace structs
+	
+	/** Queue family indices information */
+	struct QueueFamilyIndices
 	{
-		struct QueueFamilyIndices;
-	}
+		// pair::first = index, pair::second = queue count
+		std::optional<std::pair<uint32_t, uint32_t>> graphics_family_index;
+
+		// pair::first = index, pair::second = queue count
+		std::optional<std::pair<uint32_t, uint32_t>> present_family_index;
+
+		// pair::first = index, pair::second = queue count
+		std::optional<std::pair<uint32_t, uint32_t>> compute_family_index;
+
+		bool IsComplete()
+		{
+			return (graphics_family_index.has_value() &&
+				present_family_index.has_value() &&
+				compute_family_index.has_value());
+		}
+	};
 
 	class VulkanDevice
 	{
@@ -49,7 +64,7 @@ namespace vkc::vk_wrapper
 		const VkDevice& GetLogicalDeviceNative() const noexcept(true);
 
 		/** Get a reference to the queue family indices */
-		const structs::QueueFamilyIndices& GetQueueFamilyIndices() const noexcept(true);
+		const QueueFamilyIndices& GetQueueFamilyIndices() const noexcept(true);
 
 		/** Get a reference to the requested queue */
 		const VkQueue& GetQueueNativeOfType(enums::VulkanQueueType queue_type) const noexcept(false);
@@ -79,7 +94,7 @@ namespace vkc::vk_wrapper
 		VkQueue m_graphics_queue;
 		VkQueue m_present_queue;
 
-		structs::QueueFamilyIndices m_queue_family_indices;
+		QueueFamilyIndices m_queue_family_indices;
 	};
 }
 
