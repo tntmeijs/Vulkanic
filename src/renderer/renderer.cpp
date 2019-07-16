@@ -213,7 +213,7 @@ void Renderer::Initialize(const Window& window)
 	subpass_dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	subpass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-	vk_wrapper::structs::VulkanRenderPassInfo render_pass_info = {};
+	vk_wrapper::VulkanRenderPassInfo render_pass_info = {};
 	render_pass_info.attachment_descriptions = { color_attachment };
 	render_pass_info.subpass_descriptions = { subpass };
 	render_pass_info.subpass_dependencies = { subpass_dependency };
@@ -598,7 +598,7 @@ void Renderer::RecreateSwapchain(const Window& window)
 	subpass_dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	subpass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-	vk_wrapper::structs::VulkanRenderPassInfo render_pass_info = {};
+	vk_wrapper::VulkanRenderPassInfo render_pass_info = {};
 	render_pass_info.attachment_descriptions = { color_attachment };
 	render_pass_info.subpass_descriptions = { subpass };
 	render_pass_info.subpass_dependencies = { subpass_dependency };

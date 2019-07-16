@@ -2,13 +2,11 @@
 #include "miscellaneous/exceptions.hpp"
 #include "vulkan_device.hpp"
 #include "vulkan_render_pass.hpp"
-#include "vulkan_structures.hpp"
 
 // C++ standard
 #include <vector>
 
 using namespace vkc::exception;
-using namespace vkc::vk_wrapper::structs;
 using namespace vkc::vk_wrapper;
 
 void VulkanRenderPass::Create(

@@ -13,14 +13,7 @@
 
 namespace vkc::vk_wrapper::structs
 {
-	/** Information to create a Vulkan render pass */
-	// #TODO: Refactor
-	struct VulkanRenderPassInfo
-	{
-		std::vector<VkAttachmentDescription> attachment_descriptions;
-		std::vector<VkSubpassDescription> subpass_descriptions;
-		std::vector<VkSubpassDependency> subpass_dependencies;
-	};
+	
 }
 
 #endif

@@ -7,12 +7,17 @@
 namespace vkc::vk_wrapper
 {
 	class VulkanDevice;
-
-	namespace structs
+	
+	/** Information to create a Vulkan render pass */
+	/** #TODO: Refactor */
+	struct VulkanRenderPassInfo
 	{
-		struct VulkanRenderPassInfo;
-	}
+		std::vector<VkAttachmentDescription> attachment_descriptions;
+		std::vector<VkSubpassDescription> subpass_descriptions;
+		std::vector<VkSubpassDependency> subpass_dependencies;
+	};
 
+	/** Class that abstracts some of the boilerplate code when creating a render pass */
 	class VulkanRenderPass
 	{
 	public:
@@ -22,7 +27,7 @@ namespace vkc::vk_wrapper
 		/** Create a render pass using the information structure specified */
 		void Create(
 			const VulkanDevice& device,
-			const structs::VulkanRenderPassInfo& info) noexcept(false);
+			const VulkanRenderPassInfo& info) noexcept(false);
 
 		/** Destroy the Vulkan render pass object */
 		void Destroy(const VulkanDevice& device) const noexcept(true);
