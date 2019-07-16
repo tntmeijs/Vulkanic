@@ -3,6 +3,7 @@
 
 // Application
 #include "vulkan_enums.hpp"
+#include "vulkan_pipeline_info.hpp"
 
 // Vulkan
 #include <vulkan/vulkan.h>
@@ -23,11 +24,6 @@ namespace vkc
 		class VulkanDevice;
 		class VulkanShader;
 
-		namespace structs
-		{
-			struct VulkanPipelineInfo;
-		}
-
 		class VulkanPipeline
 		{
 		public:
@@ -43,7 +39,7 @@ namespace vkc
 			 */
 			void Create(
 				const VulkanDevice& device,
-				const structs::VulkanPipelineInfo* const pipeline_info,
+				const VulkanPipelineInfo* const pipeline_info,
 				enums::PipelineType type,
 				VkPipelineLayout layout,
 				VkRenderPass render_pass,
@@ -62,15 +58,15 @@ namespace vkc
 				VkRenderPass render_pass,
 				const VulkanDevice& device,
 				const VulkanShader& shader,
-				const structs::VulkanPipelineInfo* const pipeline_info) noexcept(false);
+				const VulkanPipelineInfo* const pipeline_info) noexcept(false);
 
 			/** Create a compute pipeline */
 			void CreateComputePipeline(
-				const structs::VulkanPipelineInfo* const pipeline_info) noexcept(false);
+				const VulkanPipelineInfo* const pipeline_info) noexcept(false);
 			
 			/** Create a ray-tracing pipeline using VK_NV_raytracing */
 			void CreateRayTracingPipeline(
-				const structs::VulkanPipelineInfo* const pipeline_info) noexcept(false);
+				const VulkanPipelineInfo* const pipeline_info) noexcept(false);
 
 		private:
 			VkPipeline m_pipeline;

@@ -372,7 +372,7 @@ void Renderer::CreateGraphicsPipeline()
 	spdlog::info("Successfully created a pipeline layout.");
 
 	// Structure used to configure the graphics pipeline
-	auto* graphics_pipeline_info = new vk_wrapper::structs::VulkanGraphicsPipelineInfo();
+	auto* graphics_pipeline_info = new vk_wrapper::VulkanGraphicsPipelineInfo();
 
 	graphics_pipeline_info->cull_mode = vk_wrapper::enums::PolygonFaceCullMode::FrontFace;
 	graphics_pipeline_info->discard_rasterizer_output = false;
