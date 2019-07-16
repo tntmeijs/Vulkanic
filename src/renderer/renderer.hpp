@@ -12,6 +12,7 @@
 #include "vulkan_wrapper/vulkan_command_pool.hpp"
 #include "vulkan_wrapper/vulkan_texture.hpp"
 #include "vulkan_wrapper/vulkan_texture_sampler.hpp"
+#include "vulkan_wrapper/vulkan_uniform_buffer.hpp"
 #include "memory_manager/memory_manager.hpp"
 
 // Application core
@@ -77,7 +78,7 @@ namespace vkc
 		VkDescriptorPool m_descriptor_pool;
 
 		memory::VulkanBuffer m_vertex_buffer;
-		std::vector<memory::VulkanBuffer> m_camera_ubos;
+		std::vector<vk_wrapper::VulkanUniformBuffer> m_camera_ubos;
 
 		std::vector<VkFramebuffer> m_swapchain_framebuffers;
 		std::vector<VkSemaphore> m_in_flight_frame_image_available_semaphores;
