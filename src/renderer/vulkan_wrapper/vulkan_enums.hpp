@@ -6,32 +6,6 @@
 
 namespace vkc::vk_wrapper::enums
 {
-	/** Types of shader supported by this application */
-	enum class ShaderType
-	{
-		// Standard shader types
-		Vertex		= VK_SHADER_STAGE_VERTEX_BIT,
-		Fragment	= VK_SHADER_STAGE_FRAGMENT_BIT,
-		Compute		= VK_SHADER_STAGE_COMPUTE_BIT,
-
-		// NVIDIA RTX shader types (extension, RTX only)
-		RayGeneration_NV	= VK_SHADER_STAGE_RAYGEN_BIT_NV,
-		RayClosestHit_NV	= VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV,
-		RayMiss_NV			= VK_SHADER_STAGE_MISS_BIT_NV,
-		RayAnyHit_NV		= VK_SHADER_STAGE_ANY_HIT_BIT_NV
-	};
-
-	/** Pipelines supported by this application */
-	enum class PipelineType
-	{
-		// Standard pipeline types
-		Graphics,
-		Compute,
-
-		// NVIDIA RTX pipeline type (extension, RTX only)
-		RayTracing_NV
-	};
-
 	/** Queue types supported by this application */
 	enum class VulkanQueueType
 	{

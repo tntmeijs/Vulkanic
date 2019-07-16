@@ -4,9 +4,6 @@
 // Glslang (needs to be included before Vulkan header)
 #include <glslang/Public/ShaderLang.h>
 
-// Application
-#include "vulkan_enums.hpp"
-
 // Vulkan
 #include <vulkan/vulkan.h>
 
@@ -18,6 +15,21 @@ namespace vkc::vk_wrapper
 {
 	class VulkanDevice;
 
+	/** Types of shader supported by this application */
+	enum class ShaderType
+	{
+		// Standard shader types
+		Vertex = VK_SHADER_STAGE_VERTEX_BIT,
+		Fragment = VK_SHADER_STAGE_FRAGMENT_BIT,
+		Compute = VK_SHADER_STAGE_COMPUTE_BIT,
+
+		// NVIDIA RTX shader types (extension, RTX only)
+		RayGeneration_NV = VK_SHADER_STAGE_RAYGEN_BIT_NV,
+		RayClosestHit_NV = VK_SHADER_STAGE_CLOSEST_HIT_BIT_NV,
+		RayMiss_NV = VK_SHADER_STAGE_MISS_BIT_NV,
+		RayAnyHit_NV = VK_SHADER_STAGE_ANY_HIT_BIT_NV
+	};
+
 	class VulkanShader
 	{
 	public:
@@ -27,7 +39,7 @@ namespace vkc::vk_wrapper
 		/** Create a Vulkan shader (includes loading / storing) */
 		void Create(
 			const VulkanDevice& device,
-			const std::vector<std::pair<std::string, enums::ShaderType>>& shader_files) noexcept(false);
+			const std::vector<std::pair<std::string, ShaderType>>& shader_files) noexcept(false);
 
 		/** Destroy all Vulkan objects */
 		void Destroy(const VulkanDevice& device) const noexcept(true);

@@ -389,12 +389,12 @@ void Renderer::CreateGraphicsPipeline()
 	m_graphics_pipeline.Create(
 		m_device,
 		graphics_pipeline_info,
-		vk_wrapper::enums::PipelineType::Graphics,
+		vk_wrapper::PipelineType::Graphics,
 		m_pipeline_layout,
 		m_render_pass.GetNative(),
 		{
-			{ "./resources/shaders/basic.vert", vk_wrapper::enums::ShaderType::Vertex },
-			{ "./resources/shaders/basic.frag", vk_wrapper::enums::ShaderType::Fragment }
+			{ "./resources/shaders/basic.vert", vk_wrapper::ShaderType::Vertex },
+			{ "./resources/shaders/basic.frag", vk_wrapper::ShaderType::Fragment }
 		});
 
 	// No need to keep the info around after pipeline creation
