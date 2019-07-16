@@ -19,7 +19,7 @@ namespace vkc
 		virtual const std::vector<VkVertexInputBindingDescription>& GetBindingDescriptions() const noexcept(true) = 0;
 		virtual const std::vector<VkVertexInputAttributeDescription>& GetAttributeDescriptions() const noexcept(true) = 0;
 
-	private:
+	protected:
 		std::vector<VkVertexInputBindingDescription> m_vertex_binding_descriptions;
 		std::vector<VkVertexInputAttributeDescription> m_vertex_attribute_descriptions;
     };
