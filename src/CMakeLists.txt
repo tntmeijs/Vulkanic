@@ -13,7 +13,9 @@ set(CORE_FILES
 
 set(RENDERER_FILES
     renderer/renderer.cpp
-    renderer/renderer.hpp)
+    renderer/renderer.hpp
+    renderer/vertex.cpp
+    renderer/vertex.hpp)
 
 set(MEMORY_MANAGER_FILES
     renderer/memory_manager/memory_manager.cpp
