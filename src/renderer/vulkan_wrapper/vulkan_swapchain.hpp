@@ -1,9 +1,6 @@
 #ifndef VULKAN_SWAPCHAIN_HPP
 #define VULKAN_SWAPCHAIN_HPP
 
-// Application
-#include "vulkan_structures.hpp"
-
 // Vulkan
 #include <vulkan/vulkan.h>
 
@@ -20,6 +17,15 @@ namespace vkc
 		class VulkanDevice;
 		class VulkanInstance;
 
+		/** Swapchain support information container */
+		struct SwapchainSupportDetails
+		{
+			VkSurfaceCapabilitiesKHR capabilities;
+			std::vector<VkSurfaceFormatKHR> formats;
+			std::vector<VkPresentModeKHR> present_modes;
+		};
+
+		/** Wrapper class that takes care of swapchain creation */
 		class VulkanSwapchain
 		{
 		public:
@@ -62,7 +68,7 @@ namespace vkc
 
 		private:
 			/** Check whether a valid swapchain can be created */
-			structs::SwapchainSupportDetails QuerySwapchainSupport(
+			SwapchainSupportDetails QuerySwapchainSupport(
 				const VulkanDevice& device) const noexcept(false);
 
 			/** Create the Vulkan swapchain object */
@@ -109,7 +115,7 @@ namespace vkc
 			std::vector<VkImage> m_swapchain_images;
 			std::vector<VkImageView> m_swapchain_image_views;
 
-			structs::SwapchainSupportDetails m_support_details;
+			SwapchainSupportDetails m_support_details;
 		};
 	}
 }

@@ -14,7 +14,6 @@
 #include <algorithm>
 #include <limits>
 
-using namespace vkc::vk_wrapper::structs;
 using namespace vkc::vk_wrapper;
 using namespace vkc;
 
@@ -234,8 +233,7 @@ VkSurfaceFormatKHR VulkanSwapchain::FindBestSurfaceFormat() const noexcept(true)
 	return m_support_details.formats[0];
 }
 
-VkExtent2D VulkanSwapchain::FindSurfaceExtent(
-	const Window& window) const noexcept(true)
+VkExtent2D VulkanSwapchain::FindSurfaceExtent(const Window& window) const noexcept(true)
 {
 	// Use the default extent
 	if (m_support_details.capabilities.currentExtent.width != (std::numeric_limits<std::uint32_t>::max)())

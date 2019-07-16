@@ -13,14 +13,6 @@
 
 namespace vkc::vk_wrapper::structs
 {
-	/** Swapchain support information */
-	struct SwapchainSupportDetails
-	{
-		VkSurfaceCapabilitiesKHR capabilities;
-		std::vector<VkSurfaceFormatKHR> formats;
-		std::vector<VkPresentModeKHR> present_modes;
-	};
-
 	/** Queue family indices information */
 	struct QueueFamilyIndices
 	{
