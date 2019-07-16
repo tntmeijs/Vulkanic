@@ -4,12 +4,10 @@
 #include "vulkan_device.hpp"
 #include "vulkan_pipeline.hpp"
 #include "vulkan_shader.hpp"
-#include "vulkan_structures.hpp"
 
 using namespace vkc::core;
 using namespace vkc::exception;
 using namespace vkc::vk_wrapper::enums;
-using namespace vkc::vk_wrapper::structs;
 using namespace vkc::vk_wrapper;
 
 // #TODO: Abstract pipeline layouts

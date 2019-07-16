@@ -4,7 +4,6 @@
 #include "miscellaneous/global_settings.hpp"
 #include "renderer.hpp"
 #include "vulkan_wrapper/vulkan_enums.hpp"
-#include "vulkan_wrapper/vulkan_structures.hpp"
 #include "vulkan_wrapper/vulkan_functions.hpp"
 #include "miscellaneous/vulkanic_literals.hpp"
 
@@ -213,7 +212,7 @@ void Renderer::Initialize(const Window& window)
 	subpass_dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	subpass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-	vk_wrapper::structs::VulkanRenderPassInfo render_pass_info = {};
+	vk_wrapper::VulkanRenderPassInfo render_pass_info = {};
 	render_pass_info.attachment_descriptions = { color_attachment };
 	render_pass_info.subpass_descriptions = { subpass };
 	render_pass_info.subpass_dependencies = { subpass_dependency };
@@ -372,7 +371,7 @@ void Renderer::CreateGraphicsPipeline()
 	spdlog::info("Successfully created a pipeline layout.");
 
 	// Structure used to configure the graphics pipeline
-	auto* graphics_pipeline_info = new vk_wrapper::structs::VulkanGraphicsPipelineInfo();
+	auto* graphics_pipeline_info = new vk_wrapper::VulkanGraphicsPipelineInfo();
 
 	graphics_pipeline_info->cull_mode = vk_wrapper::enums::PolygonFaceCullMode::FrontFace;
 	graphics_pipeline_info->discard_rasterizer_output = false;
@@ -598,7 +597,7 @@ void Renderer::RecreateSwapchain(const Window& window)
 	subpass_dependency.dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
 	subpass_dependency.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
 
-	vk_wrapper::structs::VulkanRenderPassInfo render_pass_info = {};
+	vk_wrapper::VulkanRenderPassInfo render_pass_info = {};
 	render_pass_info.attachment_descriptions = { color_attachment };
 	render_pass_info.subpass_descriptions = { subpass };
 	render_pass_info.subpass_dependencies = { subpass_dependency };
