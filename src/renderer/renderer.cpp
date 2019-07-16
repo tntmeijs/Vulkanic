@@ -193,8 +193,8 @@ void Renderer::Initialize(const Window& window)
 	CreateUniformBuffers();
 
 	m_uv_map_checker_texture.Create("./resources/textures/uv_checker_map.png", VK_FORMAT_R8G8B8A8_UNORM, m_device, m_graphics_command_pool);
+	m_default_sampler.Create(m_device);
 
-	CreateTextureSampler();
 	CreateDescriptorPool();
 	CreateDescriptorSets();
 	RecordFrameCommands();
@@ -314,7 +314,7 @@ void vkc::Renderer::Destroy()
 
 	CleanUpSwapchain();
 
-	vkDestroySampler(m_device.GetLogicalDeviceNative(), m_texture_sampler, nullptr);
+	m_default_sampler.Destroy(m_device);
 	m_uv_map_checker_texture.Destroy(m_device);
 
 	vkDestroyDescriptorSetLayout(m_device.GetLogicalDeviceNative(), m_camera_data_descriptor_set_layout, nullptr);
@@ -430,33 +430,6 @@ void Renderer::CreateFramebuffers()
 	}
 
 	spdlog::info("Successfully created a framebuffer for each swapchain image view.");
-}
-
-void Renderer::CreateTextureSampler()
-{
-	VkSamplerCreateInfo info = {};
-	info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-	info.minFilter = VK_FILTER_LINEAR;
-	info.magFilter = VK_FILTER_LINEAR;
-	info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_BORDER;
-	info.anisotropyEnable = VK_TRUE;
-	info.maxAnisotropy = 16;
-	info.borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK;
-	info.unnormalizedCoordinates = VK_FALSE;
-	info.compareEnable = VK_FALSE;
-	info.compareOp = VK_COMPARE_OP_ALWAYS;
-	info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
-	info.mipLodBias = 0.0f;
-	info.minLod = 0.0f;
-	info.maxLod = 0.0f;
-
-	if (vkCreateSampler(m_device.GetLogicalDeviceNative(), &info, nullptr, &m_texture_sampler) != VK_SUCCESS)
-	{
-		spdlog::error("Could not create a texture sampler.");
-		return;
-	}
 }
 
 void Renderer::RecordFrameCommands()
@@ -779,7 +752,7 @@ void Renderer::CreateDescriptorSets()
 		buffer_info.range = sizeof(CameraData);
 
 		VkDescriptorImageInfo image_info = {};
-		image_info.sampler = m_texture_sampler;
+		image_info.sampler = m_default_sampler.GetNative();
 		image_info.imageView = m_uv_map_checker_texture.GetImageView();
 		image_info.imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 

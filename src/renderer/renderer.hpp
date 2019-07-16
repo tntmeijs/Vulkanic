@@ -11,6 +11,7 @@
 #include "vulkan_wrapper/vulkan_command_buffer.hpp"
 #include "vulkan_wrapper/vulkan_command_pool.hpp"
 #include "vulkan_wrapper/vulkan_texture.hpp"
+#include "vulkan_wrapper/vulkan_texture_sampler.hpp"
 #include "memory_manager/memory_manager.hpp"
 
 // Application core
@@ -47,7 +48,6 @@ namespace vkc
 	private:
 		void CreateGraphicsPipeline();
 		void CreateFramebuffers();
-		void CreateTextureSampler();
 		void RecordFrameCommands();
 		void CreateSynchronizationObjects();
 		void RecreateSwapchain(const Window& window);
@@ -75,7 +75,6 @@ namespace vkc
 		VkDescriptorSetLayout m_camera_data_descriptor_set_layout;
 		VkPipelineLayout m_pipeline_layout;
 		VkDescriptorPool m_descriptor_pool;
-		VkSampler m_texture_sampler;
 
 		memory::VulkanBuffer m_vertex_buffer;
 		std::vector<memory::VulkanBuffer> m_camera_ubos;
@@ -95,5 +94,6 @@ namespace vkc
 		vk_wrapper::VulkanCommandPool m_graphics_command_pool;
 		vk_wrapper::VulkanCommandBuffer m_graphics_command_buffers;
 		vk_wrapper::VulkanTexture m_uv_map_checker_texture;
+		vk_wrapper::VulkanTextureSampler m_default_sampler;
 	};
 }

@@ -42,7 +42,9 @@ set(VULKAN_WRAPPER_FILES
     renderer/vulkan_wrapper/vulkan_command_pool.cpp
     renderer/vulkan_wrapper/vulkan_command_pool.hpp
     renderer/vulkan_wrapper/vulkan_texture.cpp
-    renderer/vulkan_wrapper/vulkan_texture.hpp)
+    renderer/vulkan_wrapper/vulkan_texture.hpp
+    renderer/vulkan_wrapper/vulkan_texture_sampler.cpp
+    renderer/vulkan_wrapper/vulkan_texture_sampler.hpp)
 
 add_executable(
     ${PROJECT_NAME}
