@@ -61,7 +61,7 @@ int main(int argc, char* argv[])
 
 	// Application clean-up
 	window.OnShutDown([&renderer]() {
-		// #TODO: No clean-up functions yet
+		renderer.Destroy();
 	});
 
 	// Application entry point

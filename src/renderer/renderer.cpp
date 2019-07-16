@@ -100,42 +100,7 @@ Renderer::Renderer()
 {}
 
 Renderer::~Renderer()
-{
-	// Wait until the GPU finishes the current operation before cleaning-up resources
-	vkDeviceWaitIdle(m_device.GetLogicalDeviceNative());
-
-	CleanUpSwapchain();
-
-	vkDestroySampler(m_device.GetLogicalDeviceNative(), m_texture_sampler, nullptr);
-	m_uv_map_checker_texture.Destroy(m_device);
-
-	vkDestroyDescriptorSetLayout(m_device.GetLogicalDeviceNative(), m_camera_data_descriptor_set_layout, nullptr);
-
-	// This will automatically clean up any allocated buffers and images
-	memory::MemoryManager::GetInstance().Destroy();
-
-	for (auto index = 0; index < global_settings::maximum_in_flight_frame_count; ++index)
-	{
-		vkDestroySemaphore(m_device.GetLogicalDeviceNative(), m_in_flight_frame_image_available_semaphores[index], nullptr);
-		vkDestroySemaphore(m_device.GetLogicalDeviceNative(), m_in_flight_render_finished_semaphores[index], nullptr);
-	}
-
-	for (auto index = 0; index < global_settings::maximum_in_flight_frame_count; ++index)
-	{
-		vkDestroyFence(m_device.GetLogicalDeviceNative(), m_in_flight_fences[index], nullptr);
-	}
-	
-	m_graphics_command_pool.Destroy(m_device);
-
-	m_device.Destroy();
-
-#ifdef _DEBUG
-	m_debug_messenger.Destroy(m_instance);
-#endif
-
-	m_swapchain.DestroySurface(m_instance);
-	m_instance.Destroy();
-}
+{}
 
 void Renderer::Initialize(const Window& window)
 {
@@ -340,6 +305,44 @@ void Renderer::Update()
 void Renderer::TriggerFramebufferResized()
 {
 	m_framebuffer_resized = true;
+}
+
+void vkc::Renderer::Destroy()
+{
+	// Wait until the GPU finishes the current operation before cleaning-up resources
+	vkDeviceWaitIdle(m_device.GetLogicalDeviceNative());
+
+	CleanUpSwapchain();
+
+	vkDestroySampler(m_device.GetLogicalDeviceNative(), m_texture_sampler, nullptr);
+	m_uv_map_checker_texture.Destroy(m_device);
+
+	vkDestroyDescriptorSetLayout(m_device.GetLogicalDeviceNative(), m_camera_data_descriptor_set_layout, nullptr);
+
+	// This will automatically clean up any allocated buffers and images
+	memory::MemoryManager::GetInstance().Destroy();
+
+	for (auto index = 0; index < global_settings::maximum_in_flight_frame_count; ++index)
+	{
+		vkDestroySemaphore(m_device.GetLogicalDeviceNative(), m_in_flight_frame_image_available_semaphores[index], nullptr);
+		vkDestroySemaphore(m_device.GetLogicalDeviceNative(), m_in_flight_render_finished_semaphores[index], nullptr);
+	}
+
+	for (auto index = 0; index < global_settings::maximum_in_flight_frame_count; ++index)
+	{
+		vkDestroyFence(m_device.GetLogicalDeviceNative(), m_in_flight_fences[index], nullptr);
+	}
+
+	m_graphics_command_pool.Destroy(m_device);
+
+	m_device.Destroy();
+
+#ifdef _DEBUG
+	m_debug_messenger.Destroy(m_instance);
+#endif
+
+	m_swapchain.DestroySurface(m_instance);
+	m_instance.Destroy();
 }
 
 void Renderer::CreateGraphicsPipeline()

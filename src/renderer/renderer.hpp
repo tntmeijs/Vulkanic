@@ -42,6 +42,7 @@ namespace vkc
 		void Draw(const Window& window);
 		void Update();
 		void TriggerFramebufferResized();
+		void Destroy();
 
 	private:
 		void CreateGraphicsPipeline();
