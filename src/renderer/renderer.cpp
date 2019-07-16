@@ -297,9 +297,7 @@ void Renderer::Update()
 		0.1f,
 		1000.0f);
 
-	auto data = memory::MemoryManager::GetInstance().MapBuffer(m_camera_ubos[m_current_swapchain_image_index]);
-	memcpy(data, &cam_data, sizeof(cam_data));
-	memory::MemoryManager::GetInstance().UnMapBuffer(m_camera_ubos[m_current_swapchain_image_index]);
+	m_camera_ubos[m_current_swapchain_image_index].Update(cam_data);
 }
 
 void Renderer::TriggerFramebufferResized()
@@ -594,7 +592,7 @@ void Renderer::CleanUpSwapchain()
 	for (auto index = 0; index < m_swapchain.GetImages().size(); ++index)
 	{
 		vkDestroyFramebuffer(m_device.GetLogicalDeviceNative(), m_swapchain_framebuffers[index], nullptr);
-		memory::MemoryManager::GetInstance().Free(m_camera_ubos[index]);
+		m_camera_ubos[index].Destroy();
 	}
 
 	vkDestroyDescriptorPool(m_device.GetLogicalDeviceNative(), m_descriptor_pool, nullptr);
@@ -662,15 +660,9 @@ void Renderer::CreateUniformBuffers()
 	// Create a camera data UBO for each image in the swapchain
 	for (auto index = 0; index < m_swapchain.GetImages().size(); ++index)
 	{
-		memory::BufferAllocationInfo buffer_alloc_info = {};
-		buffer_alloc_info.buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-		buffer_alloc_info.buffer_create_info.size = sizeof(CameraData);
-		buffer_alloc_info.buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-		buffer_alloc_info.buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-		buffer_alloc_info.allocation_info.usage = VMA_MEMORY_USAGE_CPU_TO_GPU;
-
-		m_camera_ubos.push_back(memory::MemoryManager::GetInstance().Allocate(buffer_alloc_info));
+		vk_wrapper::VulkanUniformBuffer ubo = {};
+		ubo.Create<CameraData>();
+		m_camera_ubos.push_back(ubo);
 	}
 }
 
@@ -747,7 +739,7 @@ void Renderer::CreateDescriptorSets()
 	for (auto index = 0; index < m_swapchain.GetImages().size(); ++index)
 	{
 		VkDescriptorBufferInfo buffer_info = {};
-		buffer_info.buffer = m_camera_ubos[index].buffer;
+		buffer_info.buffer = m_camera_ubos[index].GetNative();
 		buffer_info.offset = 0;
 		buffer_info.range = sizeof(CameraData);
 
