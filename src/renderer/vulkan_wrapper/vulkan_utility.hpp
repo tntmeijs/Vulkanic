@@ -6,7 +6,6 @@
 #include "vulkan_command_buffer.hpp"
 #include "vulkan_command_pool.hpp"
 #include "vulkan_device.hpp"
-#include "vulkan_enums.hpp"
 
 // C++ standard
 #include <string>

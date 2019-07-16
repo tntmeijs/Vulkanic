@@ -2,7 +2,6 @@
 #include "miscellaneous/exceptions.hpp"
 #include "renderer/memory_manager/memory_manager.hpp"
 #include "vulkan_device.hpp"
-#include "vulkan_enums.hpp"
 #include "vulkan_texture.hpp"
 #include "vulkan_utility.hpp"
 
@@ -14,7 +13,6 @@
 
 using namespace vkc::exception;
 using namespace vkc::memory;
-using namespace vkc::vk_wrapper::enums;
 using namespace vkc::vk_wrapper::utility;
 using namespace vkc::vk_wrapper;
 
