@@ -6,14 +6,6 @@
 
 namespace vkc::vk_wrapper::enums
 {
-	/** Queue types supported by this application */
-	enum class VulkanQueueType
-	{
-		Graphics,
-		Present,
-		Compute
-	};
-
 	/** Supported vertex topology types */
 	enum class VertexTopologyType
 	{

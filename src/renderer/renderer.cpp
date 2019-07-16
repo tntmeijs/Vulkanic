@@ -285,7 +285,7 @@ void Renderer::Draw(const Window& window)
 	vkResetFences(m_device.GetLogicalDeviceNative(), 1, &m_in_flight_fences[m_frame_index]);
 
 	// Submit the command queue
-	if (vkQueueSubmit(m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics), 1, &submit_info, m_in_flight_fences[m_frame_index]) != VK_SUCCESS)
+	if (vkQueueSubmit(m_device.GetQueueNativeOfType(vk_wrapper::VulkanQueueType::Graphics), 1, &submit_info, m_in_flight_fences[m_frame_index]) != VK_SUCCESS)
 	{
 		spdlog::error("Could not submit the queue for frame #{}.", m_current_swapchain_image_index);
 		return;
@@ -300,7 +300,7 @@ void Renderer::Draw(const Window& window)
 	present_info.pImageIndices = &m_current_swapchain_image_index;
 
 	// Request to present an image to the swapchain
-	result = vkQueuePresentKHR(m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Present), &present_info);
+	result = vkQueuePresentKHR(m_device.GetQueueNativeOfType(vk_wrapper::VulkanQueueType::Present), &present_info);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebuffer_resized)
 	{
@@ -673,7 +673,7 @@ void Renderer::CreateVertexBuffer()
 		m_device,
 		staging_buffer,
 		m_vertex_buffer,
-		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
+		m_device.GetQueueNativeOfType(vk_wrapper::VulkanQueueType::Graphics),
 		m_graphics_command_pool);
 
 	// Clean up the staging buffer since it is no longer needed

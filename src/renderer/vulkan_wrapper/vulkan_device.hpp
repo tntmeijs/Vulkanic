@@ -1,9 +1,6 @@
 #ifndef VULKAN_DEVICE_HPP
 #define VULKAN_DEVICE_HPP
 
-// Application
-#include "vulkan_enums.hpp"
-
 // Vulkan
 #include <vulkan/vulkan.h>
 
@@ -16,6 +13,14 @@ namespace vkc::vk_wrapper
 {
 	class VulkanInstance;
 	class VulkanSwapchain;
+
+	/** Queue types supported by this application */
+	enum class VulkanQueueType
+	{
+		Graphics,
+		Present,
+		Compute
+	};
 	
 	/** Queue family indices information */
 	struct QueueFamilyIndices
@@ -66,7 +71,7 @@ namespace vkc::vk_wrapper
 		const QueueFamilyIndices& GetQueueFamilyIndices() const noexcept(true);
 
 		/** Get a reference to the requested queue */
-		const VkQueue& GetQueueNativeOfType(enums::VulkanQueueType queue_type) const noexcept(false);
+		const VkQueue& GetQueueNativeOfType(VulkanQueueType queue_type) const noexcept(false);
 
 	private:
 		/** Select and create a physical device */
