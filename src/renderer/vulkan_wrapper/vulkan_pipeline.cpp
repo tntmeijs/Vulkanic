@@ -3,11 +3,9 @@
 #include "miscellaneous/exceptions.hpp"
 #include "vulkan_device.hpp"
 #include "vulkan_pipeline.hpp"
-#include "vulkan_shader.hpp"
 
 using namespace vkc::core;
 using namespace vkc::exception;
-using namespace vkc::vk_wrapper::enums;
 using namespace vkc::vk_wrapper;
 
 // #TODO: Abstract pipeline layouts
@@ -27,15 +25,15 @@ void VulkanPipeline::Create(
 	// Create a pipeline based on the specified pipeline type
 	switch (type)
 	{
-		case vkc::vk_wrapper::enums::PipelineType::Graphics:
+		case PipelineType::Graphics:
 			CreateGraphicsPipeline(layout, render_pass, device, shader, pipeline_info);
 			break;
 
-		case vkc::vk_wrapper::enums::PipelineType::Compute:
+		case PipelineType::Compute:
 			CreateComputePipeline(pipeline_info);
 			break;
 
-		case vkc::vk_wrapper::enums::PipelineType::RayTracing_NV:
+		case PipelineType::RayTracing_NV:
 			CreateRayTracingPipeline(pipeline_info);
 			break;
 

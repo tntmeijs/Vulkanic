@@ -12,7 +12,6 @@
 #include <algorithm>
 #include <set>
 
-using namespace vkc::vk_wrapper::enums;
 using namespace vkc::vk_wrapper;
 
 void VulkanDevice::Create(

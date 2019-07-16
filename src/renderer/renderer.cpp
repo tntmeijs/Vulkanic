@@ -3,7 +3,6 @@
 // Vulkanic
 #include "miscellaneous/global_settings.hpp"
 #include "renderer.hpp"
-#include "vulkan_wrapper/vulkan_enums.hpp"
 #include "vulkan_wrapper/vulkan_functions.hpp"
 #include "miscellaneous/vulkanic_literals.hpp"
 
@@ -285,7 +284,7 @@ void Renderer::Draw(const Window& window)
 	vkResetFences(m_device.GetLogicalDeviceNative(), 1, &m_in_flight_fences[m_frame_index]);
 
 	// Submit the command queue
-	if (vkQueueSubmit(m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics), 1, &submit_info, m_in_flight_fences[m_frame_index]) != VK_SUCCESS)
+	if (vkQueueSubmit(m_device.GetQueueNativeOfType(vk_wrapper::VulkanQueueType::Graphics), 1, &submit_info, m_in_flight_fences[m_frame_index]) != VK_SUCCESS)
 	{
 		spdlog::error("Could not submit the queue for frame #{}.", m_current_swapchain_image_index);
 		return;
@@ -300,7 +299,7 @@ void Renderer::Draw(const Window& window)
 	present_info.pImageIndices = &m_current_swapchain_image_index;
 
 	// Request to present an image to the swapchain
-	result = vkQueuePresentKHR(m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Present), &present_info);
+	result = vkQueuePresentKHR(m_device.GetQueueNativeOfType(vk_wrapper::VulkanQueueType::Present), &present_info);
 
 	if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR || m_framebuffer_resized)
 	{
@@ -373,28 +372,28 @@ void Renderer::CreateGraphicsPipeline()
 	// Structure used to configure the graphics pipeline
 	auto* graphics_pipeline_info = new vk_wrapper::VulkanGraphicsPipelineInfo();
 
-	graphics_pipeline_info->cull_mode = vk_wrapper::enums::PolygonFaceCullMode::FrontFace;
+	graphics_pipeline_info->cull_mode = vk_wrapper::PolygonFaceCullMode::FrontFace;
 	graphics_pipeline_info->discard_rasterizer_output = false;
 	graphics_pipeline_info->enable_depth_bias = false;
 	graphics_pipeline_info->line_width = 1.0f;
-	graphics_pipeline_info->polygon_fill_mode = vk_wrapper::enums::PolygonFillMode::Fill;
+	graphics_pipeline_info->polygon_fill_mode = vk_wrapper::PolygonFillMode::Fill;
 	graphics_pipeline_info->scissor_rect = scissor_rect;
-	graphics_pipeline_info->topology = vk_wrapper::enums::VertexTopologyType::TriangleList;
+	graphics_pipeline_info->topology = vk_wrapper::VertexTopologyType::TriangleList;
 	graphics_pipeline_info->vertex_attribute_descs = Vertex::GetAttributeDescriptions();
 	graphics_pipeline_info->vertex_binding_descs = Vertex::GetBindingDescriptions();
 	graphics_pipeline_info->viewport = viewport;
-	graphics_pipeline_info->winding_order = vk_wrapper::enums::TriangleWindingOrder::Clockwise;
+	graphics_pipeline_info->winding_order = vk_wrapper::TriangleWindingOrder::Clockwise;
 
 	// Create the graphics pipeline
 	m_graphics_pipeline.Create(
 		m_device,
 		graphics_pipeline_info,
-		vk_wrapper::enums::PipelineType::Graphics,
+		vk_wrapper::PipelineType::Graphics,
 		m_pipeline_layout,
 		m_render_pass.GetNative(),
 		{
-			{ "./resources/shaders/basic.vert", vk_wrapper::enums::ShaderType::Vertex },
-			{ "./resources/shaders/basic.frag", vk_wrapper::enums::ShaderType::Fragment }
+			{ "./resources/shaders/basic.vert", vk_wrapper::ShaderType::Vertex },
+			{ "./resources/shaders/basic.frag", vk_wrapper::ShaderType::Fragment }
 		});
 
 	// No need to keep the info around after pipeline creation
@@ -673,7 +672,7 @@ void Renderer::CreateVertexBuffer()
 		m_device,
 		staging_buffer,
 		m_vertex_buffer,
-		m_device.GetQueueNativeOfType(vk_wrapper::enums::VulkanQueueType::Graphics),
+		m_device.GetQueueNativeOfType(vk_wrapper::VulkanQueueType::Graphics),
 		m_graphics_command_pool);
 
 	// Clean up the staging buffer since it is no longer needed

@@ -6,7 +6,6 @@
 #include "vulkan_command_buffer.hpp"
 #include "vulkan_command_pool.hpp"
 #include "vulkan_device.hpp"
-#include "vulkan_enums.hpp"
 
 // C++ standard
 #include <string>
@@ -132,7 +131,7 @@ namespace vkc::vk_wrapper::utility
 			1,	// One image barrier
 			&barrier);
 
-		auto graphics_queue = device.GetQueueNativeOfType(enums::VulkanQueueType::Graphics);
+		auto graphics_queue = device.GetQueueNativeOfType(VulkanQueueType::Graphics);
 		
 		// Execute the commands on the graphics queue
 		cmd_buffer.StopRecording();
