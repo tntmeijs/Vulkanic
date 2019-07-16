@@ -373,17 +373,17 @@ void Renderer::CreateGraphicsPipeline()
 	// Structure used to configure the graphics pipeline
 	auto* graphics_pipeline_info = new vk_wrapper::VulkanGraphicsPipelineInfo();
 
-	graphics_pipeline_info->cull_mode = vk_wrapper::enums::PolygonFaceCullMode::FrontFace;
+	graphics_pipeline_info->cull_mode = vk_wrapper::PolygonFaceCullMode::FrontFace;
 	graphics_pipeline_info->discard_rasterizer_output = false;
 	graphics_pipeline_info->enable_depth_bias = false;
 	graphics_pipeline_info->line_width = 1.0f;
-	graphics_pipeline_info->polygon_fill_mode = vk_wrapper::enums::PolygonFillMode::Fill;
+	graphics_pipeline_info->polygon_fill_mode = vk_wrapper::PolygonFillMode::Fill;
 	graphics_pipeline_info->scissor_rect = scissor_rect;
-	graphics_pipeline_info->topology = vk_wrapper::enums::VertexTopologyType::TriangleList;
+	graphics_pipeline_info->topology = vk_wrapper::VertexTopologyType::TriangleList;
 	graphics_pipeline_info->vertex_attribute_descs = Vertex::GetAttributeDescriptions();
 	graphics_pipeline_info->vertex_binding_descs = Vertex::GetBindingDescriptions();
 	graphics_pipeline_info->viewport = viewport;
-	graphics_pipeline_info->winding_order = vk_wrapper::enums::TriangleWindingOrder::Clockwise;
+	graphics_pipeline_info->winding_order = vk_wrapper::TriangleWindingOrder::Clockwise;
 
 	// Create the graphics pipeline
 	m_graphics_pipeline.Create(
