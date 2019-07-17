@@ -3,6 +3,7 @@
 // Vulkanic
 #include "miscellaneous/global_settings.hpp"
 #include "renderer.hpp"
+#include "renderer/vertex.hpp"
 #include "vulkan_wrapper/vulkan_functions.hpp"
 #include "miscellaneous/vulkanic_literals.hpp"
 
@@ -32,58 +33,13 @@
 
 using namespace vkc;
 
-// Hard-coded models
-struct Vertex
+// Hard-coded model
+const std::vector<VertexPCT> vertices =
 {
-	glm::vec4 position;
-	glm::vec4 color;
-	glm::vec2 uv;
-
-	static std::vector<VkVertexInputBindingDescription> GetBindingDescriptions()
-	{
-		VkVertexInputBindingDescription desc = {};
-		desc.binding = 0;
-		desc.stride = sizeof(Vertex);
-		desc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-
-		return { desc };
-	}
-
-	static std::vector<VkVertexInputAttributeDescription> GetAttributeDescriptions()
-	{
-		std::vector<VkVertexInputAttributeDescription> attribs;
-
-		VkVertexInputAttributeDescription position_attrib = {};
-		position_attrib.binding = 0;
-		position_attrib.location = 0;
-		position_attrib.format = VK_FORMAT_R32G32B32_SFLOAT;
-		position_attrib.offset = offsetof(Vertex, position);
-		attribs.push_back(position_attrib);
-
-		VkVertexInputAttributeDescription color_attrib = {};
-		color_attrib.binding = 0;
-		color_attrib.location = 1;
-		color_attrib.format = VK_FORMAT_R32G32B32_SFLOAT;
-		color_attrib.offset = offsetof(Vertex, color);
-		attribs.push_back(color_attrib);
-
-		VkVertexInputAttributeDescription uv_attrib = {};
-		uv_attrib.binding = 0;
-		uv_attrib.location = 2;
-		uv_attrib.format = VK_FORMAT_R32G32_SFLOAT;
-		uv_attrib.offset = offsetof(Vertex, uv);
-		attribs.push_back(uv_attrib);
-
-		return attribs;
-	}
-};
-
-const std::vector<Vertex> vertices =
-{
-	// Position						// Color					// UV
-	{ {  0.0f, -0.5f, 0.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },	{ 0.5f, 0.0f } },
-	{ { -0.5f,  0.5f, 0.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },	{ 0.0f, 1.0f } },
-	{ {  0.5f,  0.5f, 0.0f, 1.0f }, { 1.0f, 1.0f, 1.0f, 1.0f },	{ 1.0f, 1.0f } }
+	// Position					// Color				// UV
+	{ {  0.0f, -0.5f, 0.0f },	{ 1.0f, 1.0f, 1.0f, },	{ 0.5f, 0.0f } },
+	{ { -0.5f,  0.5f, 0.0f },	{ 1.0f, 1.0f, 1.0f, },	{ 0.0f, 1.0f } },
+	{ {  0.5f,  0.5f, 0.0f },	{ 1.0f, 1.0f, 1.0f, },	{ 1.0f, 1.0f } }
 };
 
 struct CameraData
@@ -380,8 +336,8 @@ void Renderer::CreateGraphicsPipeline()
 	graphics_pipeline_info->polygon_fill_mode = vk_wrapper::PolygonFillMode::Fill;
 	graphics_pipeline_info->scissor_rect = scissor_rect;
 	graphics_pipeline_info->topology = vk_wrapper::VertexTopologyType::TriangleList;
-	graphics_pipeline_info->vertex_attribute_descs = Vertex::GetAttributeDescriptions();
-	graphics_pipeline_info->vertex_binding_descs = Vertex::GetBindingDescriptions();
+	graphics_pipeline_info->vertex_attribute_descs = VertexPCT::GetAttributeDescriptions();
+	graphics_pipeline_info->vertex_binding_descs = VertexPCT::GetBindingDescriptions();
 	graphics_pipeline_info->viewport = viewport;
 	graphics_pipeline_info->winding_order = vk_wrapper::TriangleWindingOrder::Clockwise;
 
@@ -609,7 +565,7 @@ void Renderer::CleanUpSwapchain()
 
 void Renderer::CreateVertexBuffer()
 {
-	VkDeviceSize buffer_size = sizeof(Vertex) * vertices.size();
+	VkDeviceSize buffer_size = sizeof(VertexPCT) * vertices.size();
 
 	// Create a CPU-visible staging buffer
 	memory::BufferAllocationInfo staging_buffer_alloc_info = {};

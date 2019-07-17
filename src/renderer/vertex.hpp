@@ -13,30 +13,20 @@
 
 namespace vkc
 {
-	/** Pure abstract class, all vertex types should inherit from this class */
-    class VertexBase
-    {
-	public:
-		// TODO: add comments
-		const std::vector<VkVertexInputBindingDescription>& GetBindingDescriptions() const noexcept(true);
-		const std::vector<VkVertexInputAttributeDescription>& GetAttributeDescriptions() const noexcept(true);
-
-	protected:
-		VertexBase() noexcept(true) = default;
-		~VertexBase() noexcept(true) = default;
-
-	protected:
-		std::vector<VkVertexInputBindingDescription> m_vertex_binding_descriptions;
-		std::vector<VkVertexInputAttributeDescription> m_vertex_attribute_descriptions;
-    };
-
 	/** Simple vertex with a position, color, and texture coordinate */
-	class VertexPCT final : public VertexBase
+	class VertexPCT
 	{
 	public:
 		VertexPCT() noexcept(true);
+		VertexPCT(const glm::vec3& position, const glm::vec3& color, const glm::vec2& texture_coordinate);
 		~VertexPCT() noexcept(true);
 		
+		/** Get a list of input binding description structures needed to work with this vertex */
+		static std::vector<VkVertexInputBindingDescription> GetBindingDescriptions() noexcept(true);
+
+		/** Get a list of input attribute description structures needed to work with this vertex */
+		static std::vector<VkVertexInputAttributeDescription> GetAttributeDescriptions() noexcept(true);
+
 	public:
 		glm::vec3 position;
 		glm::vec3 color;
