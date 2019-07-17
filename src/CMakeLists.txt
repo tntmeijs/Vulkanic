@@ -48,7 +48,9 @@ set(VULKAN_WRAPPER_FILES
     renderer/vulkan_wrapper/vulkan_texture_sampler.cpp
     renderer/vulkan_wrapper/vulkan_texture_sampler.hpp
     renderer/vulkan_wrapper/vulkan_uniform_buffer.cpp
-    renderer/vulkan_wrapper/vulkan_uniform_buffer.hpp)
+    renderer/vulkan_wrapper/vulkan_uniform_buffer.hpp
+    renderer/vulkan_wrapper/vulkan_vertex_buffer.cpp
+    renderer/vulkan_wrapper/vulkan_vertex_buffer.hpp)
 
 add_executable(
     ${PROJECT_NAME}
