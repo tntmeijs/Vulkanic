@@ -13,6 +13,7 @@
 #include "vulkan_wrapper/vulkan_texture.hpp"
 #include "vulkan_wrapper/vulkan_texture_sampler.hpp"
 #include "vulkan_wrapper/vulkan_uniform_buffer.hpp"
+#include "vulkan_wrapper/vulkan_vertex_buffer.hpp"
 #include "memory_manager/memory_manager.hpp"
 
 // Application core
@@ -53,7 +54,6 @@ namespace vkc
 		void CreateSynchronizationObjects();
 		void RecreateSwapchain(const Window& window);
 		void CleanUpSwapchain();
-		void CreateVertexBuffer();
 		void CreateUniformBuffers();
 		void CreateDescriptorPool();
 		void CreateDescriptorSetLayout();
@@ -77,7 +77,7 @@ namespace vkc
 		VkPipelineLayout m_pipeline_layout;
 		VkDescriptorPool m_descriptor_pool;
 
-		memory::VulkanBuffer m_vertex_buffer;
+		vk_wrapper::VulkanVertexBuffer m_vertex_buffer;
 		std::vector<vk_wrapper::VulkanUniformBuffer> m_camera_ubos;
 
 		std::vector<VkFramebuffer> m_swapchain_framebuffers;

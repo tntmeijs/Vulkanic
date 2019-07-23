@@ -145,7 +145,7 @@ void Renderer::Initialize(const Window& window)
 
 	m_graphics_command_pool.Create(m_device, vk_wrapper::CommandPoolType::Graphics);
 
-	CreateVertexBuffer();
+	m_vertex_buffer.Create(m_device, m_graphics_command_pool, vertices);
 	CreateUniformBuffers();
 
 	m_uv_map_checker_texture.Create("./resources/textures/uv_checker_map.png", VK_FORMAT_R8G8B8A8_UNORM, m_device, m_graphics_command_pool);
@@ -419,7 +419,7 @@ void Renderer::RecordFrameCommands()
 		vkCmdBindPipeline(m_graphics_command_buffers.GetNative(i), VK_PIPELINE_BIND_POINT_GRAPHICS, m_graphics_pipeline.GetNative());
 
 		// Bind the triangle vertex buffer
-		VkBuffer vertex_buffers[] = { m_vertex_buffer.buffer };
+		VkBuffer vertex_buffers[] = { m_vertex_buffer.GetNative() };
 		VkDeviceSize offsets[] = { 0 };
 		vkCmdBindVertexBuffers(m_graphics_command_buffers.GetNative(i), 0, 1, vertex_buffers, offsets);
 
@@ -561,52 +561,6 @@ void Renderer::CleanUpSwapchain()
 	
 	m_render_pass.Destroy(m_device);
 	m_swapchain.Destroy(m_device);
-}
-
-void Renderer::CreateVertexBuffer()
-{
-	VkDeviceSize buffer_size = sizeof(VertexPCT) * vertices.size();
-
-	// Create a CPU-visible staging buffer
-	memory::BufferAllocationInfo staging_buffer_alloc_info = {};
-	staging_buffer_alloc_info.buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	staging_buffer_alloc_info.buffer_create_info.size = buffer_size;
-	staging_buffer_alloc_info.buffer_create_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
-	staging_buffer_alloc_info.buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	staging_buffer_alloc_info.allocation_info.usage = VMA_MEMORY_USAGE_CPU_ONLY;
-
-	auto staging_buffer = memory::MemoryManager::GetInstance().Allocate(staging_buffer_alloc_info);
-
-	// Copy the data to a staging buffer
-	auto data = memory::MemoryManager::GetInstance().MapBuffer(staging_buffer);
-	memcpy(data, vertices.data(), static_cast<size_t>(buffer_size));
-	memory::MemoryManager::GetInstance().UnMapBuffer(staging_buffer);
-
-	// Create a GPU-visible vertex buffer
-	memory::BufferAllocationInfo vertex_buffer_alloc_info = {};
-	vertex_buffer_alloc_info.buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-	vertex_buffer_alloc_info.buffer_create_info.size = buffer_size;
-	vertex_buffer_alloc_info.buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT;
-	vertex_buffer_alloc_info.buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-
-	vertex_buffer_alloc_info.allocation_info.usage = VMA_MEMORY_USAGE_GPU_ONLY;
-
-	// Not deleting the texture here causes the vertex memory to zero-out (right before vertex buffer memory allocation)
-	//m_test_texture.Destroy(m_device);
-
-	m_vertex_buffer = memory::MemoryManager::GetInstance().Allocate(vertex_buffer_alloc_info);
-
-	// Copy the staging buffer to the GPU visible buffer
-	CopyStagingBufferToDeviceLocalBuffer(
-		m_device,
-		staging_buffer,
-		m_vertex_buffer,
-		m_device.GetQueueNativeOfType(vk_wrapper::VulkanQueueType::Graphics),
-		m_graphics_command_pool);
-
-	// Clean up the staging buffer since it is no longer needed
-	memory::MemoryManager::GetInstance().Free(staging_buffer);
 }
 
 void Renderer::CreateUniformBuffers()
