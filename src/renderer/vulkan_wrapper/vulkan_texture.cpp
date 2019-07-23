@@ -49,9 +49,7 @@ void VulkanTexture::Create(
 	auto texture_staging_buffer = CreateStagingBuffer(data_size);
 
 	// Copy texture data to the staging buffer
-	auto data = MemoryManager::GetInstance().MapBuffer(texture_staging_buffer);
-	memcpy(data, pixel_data, data_size);
-	MemoryManager::GetInstance().UnMapBuffer(texture_staging_buffer);
+	memcpy(texture_staging_buffer.info.pMappedData, pixel_data, data_size);
 
 	// Clean-up the image pixel data
 	stbi_image_free(pixel_data);
@@ -114,6 +112,7 @@ const VulkanBuffer& VulkanTexture::CreateStagingBuffer(const VkDeviceSize buffer
 	texture_staging_buffer_info.buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
 
 	texture_staging_buffer_info.allocation_info.usage = VMA_MEMORY_USAGE_CPU_ONLY;
+	texture_staging_buffer_info.allocation_info.flags = VMA_ALLOCATION_CREATE_MAPPED_BIT;
 
 	return MemoryManager::GetInstance().Allocate(texture_staging_buffer_info);
 }
