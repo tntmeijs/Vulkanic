@@ -3,6 +3,10 @@
 
 // Application
 #include "miscellaneous/exceptions.hpp"
+#include "renderer/memory_manager/memory_manager.hpp"
+#include "vulkan_command_buffer.hpp"
+#include "vulkan_command_pool.hpp"
+#include "vulkan_device.hpp"
 
 // Vulkan
 #include <vulkan/vulkan.h>
@@ -79,6 +83,38 @@ namespace vkc::vk_wrapper::func
 	inline std::uint32_t AlignTo(std::uint32_t size, std::uint32_t alignment) noexcept(true)
 	{
 		return size + ((alignment - (size % alignment)) % alignment);
+	}
+
+	//////////////////////////////////////////////////////////////////////////
+
+	/** Copy data from a host visible buffer to a device local buffer using the specified command pool */
+	inline void CopyHostVisibleBufferToDeviceLocalBuffer(
+		const VulkanDevice& device,
+		const VulkanCommandPool& command_pool,
+		const memory::VulkanBuffer& host_visible_buffer,
+		const memory::VulkanBuffer& device_local_buffer) noexcept(true)
+	{
+		VulkanCommandBuffer cmd_buffer = {};
+		cmd_buffer.Create(device, command_pool, 1);
+		cmd_buffer.BeginRecording(CommandBufferUsage::OneTimeSubmit);
+
+		VkBufferCopy region = {};
+		region.srcOffset = host_visible_buffer.info.offset;
+		region.size = host_visible_buffer.info.size;
+		region.dstOffset = device_local_buffer.info.offset;
+
+		// Copy command
+		vkCmdCopyBuffer(cmd_buffer.GetNative(), host_visible_buffer.buffer, device_local_buffer.buffer, 1, &region);
+
+		// Get hold of the graphics queue since that one is guaranteed to be able to perform transfers as well
+		auto& queue = device.GetQueueNativeOfType(VulkanQueueType::Graphics);
+
+		// Execute the command
+		cmd_buffer.StopRecording();
+		cmd_buffer.Submit(queue);
+		vkQueueWaitIdle(queue);
+
+		cmd_buffer.Destroy(device, command_pool);
 	}
 
 	//////////////////////////////////////////////////////////////////////////
