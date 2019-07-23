@@ -37,9 +37,16 @@ using namespace vkc;
 const std::vector<VertexPCT> vertices =
 {
 	// Position					// Color				// UV
-	{ {  0.0f, -0.5f, 0.0f },	{ 1.0f, 1.0f, 1.0f, },	{ 0.5f, 0.0f } },
-	{ { -0.5f,  0.5f, 0.0f },	{ 1.0f, 1.0f, 1.0f, },	{ 0.0f, 1.0f } },
-	{ {  0.5f,  0.5f, 0.0f },	{ 1.0f, 1.0f, 1.0f, },	{ 1.0f, 1.0f } }
+	{ { -0.5f, -0.5f, 0.0f },	{ 1.0f, 1.0f, 1.0f },	{ 0.0f, 0.0f } },
+	{ {  0.0f, -0.5f, 0.0f },	{ 1.0f, 1.0f, 1.0f },	{ 0.5f, 0.0f } },
+	{ { -0.5f,  0.5f, 0.0f },	{ 1.0f, 1.0f, 1.0f },	{ 0.0f, 1.0f } },
+	{ {  0.5f,  0.5f, 0.0f },	{ 1.0f, 1.0f, 1.0f },	{ 1.0f, 1.0f } }
+};
+
+const std::vector<std::uint64_t> indices =
+{
+	0, 1, 2,
+	0, 2, 3
 };
 
 struct CameraData
@@ -339,7 +346,7 @@ void Renderer::CreateGraphicsPipeline()
 	graphics_pipeline_info->vertex_attribute_descs = VertexPCT::GetAttributeDescriptions();
 	graphics_pipeline_info->vertex_binding_descs = VertexPCT::GetBindingDescriptions();
 	graphics_pipeline_info->viewport = viewport;
-	graphics_pipeline_info->winding_order = vk_wrapper::TriangleWindingOrder::Clockwise;
+	graphics_pipeline_info->winding_order = vk_wrapper::TriangleWindingOrder::CounterClockwise;
 
 	// Create the graphics pipeline
 	m_graphics_pipeline.Create(
