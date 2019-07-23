@@ -132,10 +132,6 @@ const VulkanBuffer& MemoryManager::Allocate(const BufferAllocationInfo& buffer_i
 		throw CriticalVulkanError("Could not create a buffer.");
 	}
 
-	// Get the allocation information
-	VmaAllocationInfo alloc_info = {};
-	vmaGetAllocationInfo(m_allocator, buffer.allocation, &alloc_info);
-
 	// Save the buffer
 	m_buffers.push_back(buffer);
 	return m_buffers[m_buffers.size() - 1];
