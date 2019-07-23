@@ -5,6 +5,7 @@ using namespace vkc::memory;
 using namespace vkc::vk_wrapper;
 
 VulkanVertexBuffer::VulkanVertexBuffer() noexcept(true)
+	: m_vertex_buffer({})
 {}
 
 VulkanVertexBuffer::~VulkanVertexBuffer() noexcept(true)
